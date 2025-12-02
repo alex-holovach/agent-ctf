@@ -10,6 +10,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.71.0",
     "@aws-sdk/client-rds-data": "latest",
     "@cloudflare/workers-types": "latest",
     "@electric-sql/pglite": "latest",
@@ -76,6 +77,7 @@
     "mysql2": "latest",
     "next": "16.0.3",
     "next-themes": "latest",
+    "openai": "^6.9.1",
     "pg": "latest",
     "postgres": "latest",
     "react": "19.2.0",
@@ -91,6 +93,7 @@
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
     "vaul": "^1.1.2",
+    "workflow": "4.0.1-beta.24",
     "zod": "3.25.76"
   },
   "devDependencies": {
