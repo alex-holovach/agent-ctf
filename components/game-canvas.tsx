@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { AutoScrollTerminal } from "@/components/auto-scroll-terminal"
 import Link from "next/link"
 import { DEFAULT_AGENTS, type AgentConfig, type BattleEvent } from "@/lib/types"
 
@@ -273,21 +274,12 @@ export function GameCanvas() {
                         <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
                       )}
                     </div>
-                    <ScrollArea className="h-28">
-                      <div className="space-y-1">
-                        {agent.terminalLogs.length === 0 ? (
-                          <div className="text-[10px] font-mono text-neutral-700">
-                            {battleStarted ? 'Connecting...' : 'Waiting for battle...'}
-                          </div>
-                        ) : (
-                          agent.terminalLogs.map((log, i) => (
-                            <div key={i} className="text-[10px] font-mono text-neutral-400 leading-relaxed">
-                              {log}
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </ScrollArea>
+                    <AutoScrollTerminal
+                      logs={agent.terminalLogs}
+                      emptyMessage={battleStarted ? 'Connecting...' : 'Waiting for battle...'}
+                      isActive={agent.status === 'running' || agent.status === 'starting'}
+                      className="h-28"
+                    />
                   </div>
 
                   {/* Model info */}
@@ -516,19 +508,12 @@ export function GameCanvas() {
                 </h3>
 
                 <div className="bg-black border border-neutral-900 rounded p-3">
-                  <ScrollArea className="h-48">
-                    <div className="space-y-1">
-                      {tower.terminalLogs.length === 0 ? (
-                        <div className="text-[10px] font-mono text-neutral-700">System idle...</div>
-                      ) : (
-                        tower.terminalLogs.map((log, i) => (
-                          <div key={i} className="text-[10px] font-mono text-neutral-400 leading-relaxed">
-                            {log}
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </ScrollArea>
+                  <AutoScrollTerminal
+                    logs={tower.terminalLogs}
+                    emptyMessage="System idle..."
+                    isActive={tower.status === 'ready'}
+                    className="h-48"
+                  />
                 </div>
               </div>
 
