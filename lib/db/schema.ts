@@ -2,7 +2,7 @@ import { pgTable, serial, text, integer, timestamp, boolean, jsonb } from "drizz
 
 export const games = pgTable("games", {
   id: serial("id").primaryKey(),
-  status: text("status").notNull().default("idle"), // idle, running, finished
+  status: text("status").notNull().default("idle"), // idle, running, finished, cancelled
   towerHealth: integer("tower_health").notNull().default(1000),
   towerCpu: integer("tower_cpu").notNull().default(0),
   towerMemory: integer("tower_memory").notNull().default(0),

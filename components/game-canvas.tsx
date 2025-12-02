@@ -20,8 +20,10 @@ interface TowerState {
   terminalLogs: string[]
 }
 
+const BATTLE_STORAGE_KEY = 'llm-battle-gameId'
+
 export function GameCanvas() {
-  const [battleId, setBattleId] = useState<string | null>(null)
+  const [gameId, setGameId] = useState<number | null>(null)
   const [battleStarted, setBattleStarted] = useState(false)
   const [agents, setAgents] = useState<AgentState[]>(() => 
     DEFAULT_AGENTS.map(agent => ({
@@ -40,12 +42,49 @@ export function GameCanvas() {
   const eventSourceRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
 
+  // Check for existing battle on mount
+  useEffect(() => {
+    const checkExistingBattle = async () => {
+      const storedGameId = localStorage.getItem(BATTLE_STORAGE_KEY)
+      if (!storedGameId) return
+
+      try {
+        const response = await fetch(`/api/battle?gameId=${storedGameId}`)
+        if (response.ok) {
+          const { game } = await response.json()
+          if (game?.status === 'running') {
+            // Battle is still running - show as active but we can't reconnect to stream
+            setGameId(game.id)
+            setBattleStarted(true)
+            setTower(prev => ({
+              ...prev,
+              terminalLogs: ['Reconnected to existing battle...', 'Note: Live stream unavailable after page reload'],
+              status: 'ready',
+            }))
+          } else {
+            // Battle finished or cancelled, clear storage
+            localStorage.removeItem(BATTLE_STORAGE_KEY)
+          }
+        } else {
+          localStorage.removeItem(BATTLE_STORAGE_KEY)
+        }
+      } catch {
+        localStorage.removeItem(BATTLE_STORAGE_KEY)
+      }
+    }
+
+    checkExistingBattle()
+  }, [])
+
   // Handle battle events from stream
   const handleBattleEvent = useCallback((event: BattleEvent) => {
     switch (event.type) {
       case 'battle:start':
-        if (event.data?.battleId) {
-          setBattleId(event.data.battleId as string)
+        if (event.data?.gameId) {
+          const id = event.data.gameId as number
+          setGameId(id)
+          // Store in localStorage for persistence
+          localStorage.setItem(BATTLE_STORAGE_KEY, id.toString())
         }
         break
 
@@ -88,7 +127,9 @@ export function GameCanvas() {
 
       case 'battle:end':
         setBattleStarted(false)
-        setBattleId(null)
+        setGameId(null)
+        // Clear localStorage
+        localStorage.removeItem(BATTLE_STORAGE_KEY)
         setTower(prev => ({
           ...prev,
           terminalLogs: [...prev.terminalLogs.slice(-20), event.message || 'Battle ended'],
@@ -182,24 +223,26 @@ export function GameCanvas() {
 
   // Stop battle
   const handleStopBattle = async () => {
-    // Abort the fetch
+    // Abort the fetch stream
     abortControllerRef.current?.abort()
     
-    // Also notify server
-    if (battleId) {
+    // Notify server to cancel via DB update
+    if (gameId) {
       try {
         await fetch('/api/battle', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'stop', battleId }),
+          body: JSON.stringify({ action: 'stop', gameId }),
         })
-      } catch (e) {
+      } catch {
         // Ignore errors on stop
       }
     }
 
+    // Clear localStorage
+    localStorage.removeItem(BATTLE_STORAGE_KEY)
     setBattleStarted(false)
-    setBattleId(null)
+    setGameId(null)
   }
 
   // Cleanup on unmount
@@ -518,11 +561,11 @@ export function GameCanvas() {
               </div>
 
               {/* Battle Info */}
-              {battleId && (
+              {gameId && (
                 <div className="border border-neutral-800 rounded-lg bg-neutral-950 p-4">
                   <h3 className="text-[10px] font-mono text-neutral-600 uppercase mb-3">Battle Info</h3>
                   <div className="text-[10px] font-mono text-neutral-400">
-                    ID: <span className="text-neutral-500">{battleId}</span>
+                    Game ID: <span className="text-neutral-500">{gameId}</span>
                   </div>
                 </div>
               )}
