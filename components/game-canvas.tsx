@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import Link from "next/link"
+import useSWR from "swr"
 
 interface Agent {
   id: string
@@ -36,7 +37,15 @@ interface Attack {
   payload: string
 }
 
+const fetcher = (url: string) => fetch(url).then((res) => res.json())
+
 export function GameCanvas() {
+  const { data: gameData, mutate } = useSWR("/api/game", fetcher, {
+    refreshInterval: 1000,
+    revalidateOnFocus: true,
+  })
+
+  const [currentGameId, setCurrentGameId] = useState<number | null>(null)
   const [battleStarted, setBattleStarted] = useState(false)
   const [towerHealth, setTowerHealth] = useState(100)
   const [agents, setAgents] = useState<Agent[]>([
@@ -107,6 +116,42 @@ export function GameCanvas() {
   const [attacks, setAttacks] = useState<Attack[]>([])
 
   useEffect(() => {
+    if (gameData?.game) {
+      const game = gameData.game
+      setCurrentGameId(game.id)
+      setBattleStarted(game.status === "running")
+      setTowerHealth(game.towerHealth)
+
+      if (game.agents && game.agents.length > 0) {
+        setAgents((prev) =>
+          prev.map((agent, index) => {
+            const dbAgent = game.agents[index]
+            if (dbAgent) {
+              return {
+                ...agent,
+                id: dbAgent.id.toString(),
+                score: dbAgent.score,
+                totalRequests: dbAgent.totalRequests,
+                successfulExploits: dbAgent.successfulExploits,
+                portDiscovered: dbAgent.portDiscovered,
+                vulnerabilitiesFound: dbAgent.vulnerabilitiesFound || [],
+              }
+            }
+            return agent
+          }),
+        )
+      }
+
+      setTowerMetrics((prev) => ({
+        ...prev,
+        cpu: game.towerCpu,
+        memory: game.towerMemory,
+        requests: game.towerRequests,
+      }))
+    }
+  }, [gameData])
+
+  useEffect(() => {
     if (!battleStarted) return
 
     const thinkingMessages = [
@@ -157,7 +202,6 @@ export function GameCanvas() {
       const payload = attackPayloads[Math.floor(Math.random() * attackPayloads.length)]
       const timestamp = new Date().toLocaleTimeString("en-US", { hour12: false })
 
-      // Create attack animation
       const attack: Attack = {
         id: `${randomAgent.id}-${Date.now()}`,
         fromAgent: randomAgent.id,
@@ -167,7 +211,6 @@ export function GameCanvas() {
 
       setAttacks((prev) => [...prev, attack])
 
-      // Update agent stats
       setAgents((prev) =>
         prev.map((agent) => {
           if (agent.id === randomAgent.id) {
@@ -195,7 +238,6 @@ export function GameCanvas() {
         }),
       )
 
-      // Update tower metrics
       setTowerMetrics((prev) => {
         const newLog = `[${timestamp}] Incoming ${payload} from ${randomAgent.name} - DMG: ${damage}`
         const newCpu = Math.min(95, prev.cpu + Math.random() * 5)
@@ -217,7 +259,6 @@ export function GameCanvas() {
         }
       })
 
-      // Update tower health
       setTowerHealth((prev) => Math.max(0, prev - damage))
     }, 800)
 
@@ -229,6 +270,90 @@ export function GameCanvas() {
       setBattleStarted(false)
     }
   }, [towerHealth, battleStarted])
+
+  useEffect(() => {
+    if (!battleStarted || !currentGameId) return
+
+    const syncInterval = setInterval(async () => {
+      try {
+        await fetch("/api/game", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            gameId: currentGameId,
+            towerHealth,
+            towerCpu: towerMetrics.cpu,
+            towerMemory: towerMetrics.memory,
+            towerRequests: towerMetrics.requests,
+          }),
+        })
+      } catch (error) {
+        console.error("Failed to sync tower metrics:", error)
+      }
+    }, 2000)
+
+    return () => clearInterval(syncInterval)
+  }, [battleStarted, currentGameId, towerHealth, towerMetrics])
+
+  useEffect(() => {
+    if (!battleStarted || !currentGameId) return
+
+    const syncInterval = setInterval(async () => {
+      try {
+        await Promise.all(
+          agents.map((agent) =>
+            fetch("/api/agents", {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                agentId: agent.id,
+                score: agent.score,
+                totalRequests: agent.totalRequests,
+                successfulExploits: agent.successfulExploits,
+                portDiscovered: agent.portDiscovered,
+                vulnerabilitiesFound: agent.vulnerabilitiesFound,
+              }),
+            }),
+          ),
+        )
+      } catch (error) {
+        console.error("Failed to sync agent data:", error)
+      }
+    }, 2000)
+
+    return () => clearInterval(syncInterval)
+  }, [battleStarted, currentGameId, agents])
+
+  const handleStartBattle = async () => {
+    try {
+      const response = await fetch("/api/game", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "start" }),
+      })
+      const data = await response.json()
+      setCurrentGameId(data.game.id)
+      setBattleStarted(true)
+      mutate()
+    } catch (error) {
+      console.error("Failed to start battle:", error)
+    }
+  }
+
+  const handleStopBattle = async () => {
+    if (!currentGameId) return
+    try {
+      await fetch("/api/game", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "stop", gameId: currentGameId }),
+      })
+      setBattleStarted(false)
+      mutate()
+    } catch (error) {
+      console.error("Failed to stop battle:", error)
+    }
+  }
 
   return (
     <div className="relative w-full h-screen bg-black flex flex-col overflow-hidden">
@@ -249,16 +374,11 @@ export function GameCanvas() {
         </div>
         <div className="flex gap-2">
           {!battleStarted ? (
-            <Button onClick={() => setBattleStarted(true)} size="sm" className="font-mono text-xs h-8 px-4">
+            <Button onClick={handleStartBattle} size="sm" className="font-mono text-xs h-8 px-4">
               Start Battle
             </Button>
           ) : (
-            <Button
-              onClick={() => setBattleStarted(false)}
-              variant="destructive"
-              size="sm"
-              className="font-mono text-xs h-8 px-4"
-            >
+            <Button onClick={handleStopBattle} variant="destructive" size="sm" className="font-mono text-xs h-8 px-4">
               Stop Battle
             </Button>
           )}
