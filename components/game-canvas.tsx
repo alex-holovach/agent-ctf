@@ -242,9 +242,9 @@ export function GameCanvas() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex">
+      <div className="flex-1 flex min-h-0">
         {/* Left Sidebar - LLM Terminals */}
-        <div className="w-[320px] border-r border-neutral-800 bg-black">
+        <div className="w-[320px] border-r border-neutral-800 bg-black overflow-hidden">
           <ScrollArea className="h-full">
             <div className="p-4 space-y-4">
               <h2 className="text-xs font-mono text-neutral-400 uppercase tracking-wide mb-4">LLM Agents</h2>
