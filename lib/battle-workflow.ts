@@ -32,11 +32,15 @@ async function emitEvent(
   emit?.(event)
 }
 
-// Tower setup step - creates Vercel sandbox
+// Skip real sandbox for now - use mock URL
+const USE_MOCK_SANDBOX = true
+const MOCK_SANDBOX_URL = 'https://tower-sandbox.vercel.app'
+
+// Tower setup step - creates Vercel sandbox, returns URL or null on failure
 async function setupTowerSandbox(
   gameId: number,
   emit?: (event: BattleEvent) => void
-): Promise<boolean> {
+): Promise<string | null> {
   await emitEvent(gameId, {
     type: 'tower:setup',
     timestamp: Date.now(),
@@ -50,7 +54,25 @@ async function setupTowerSandbox(
       timestamp: Date.now(),
       message: 'Tower setup cancelled.',
     }, emit)
-    return false
+    return null
+  }
+
+  // Use mock sandbox for now
+  if (USE_MOCK_SANDBOX) {
+    await sleep(500)
+    await emitEvent(gameId, {
+      type: 'tower:setup',
+      timestamp: Date.now(),
+      message: `Tower ready at ${MOCK_SANDBOX_URL}`,
+    }, emit)
+
+    await emitEvent(gameId, {
+      type: 'tower:status',
+      timestamp: Date.now(),
+      data: { health: 100, status: 'ready', url: MOCK_SANDBOX_URL },
+    }, emit)
+
+    return MOCK_SANDBOX_URL
   }
 
   try {
@@ -83,7 +105,7 @@ async function setupTowerSandbox(
       data: { health: 100, status: 'ready', url: sandboxInfo.url },
     }, emit)
 
-    return true
+    return sandboxInfo.url
   } catch (error) {
     console.error('Sandbox creation failed:', error)
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
@@ -97,14 +119,29 @@ async function setupTowerSandbox(
       timestamp: Date.now(),
       message: `Tower setup failed: ${errorMessage}`,
     }, emit)
-    return false
+    return null
   }
 }
 
-// Agent step - runs for 10 seconds, emitting logs every second
+// Mock agent actions for simulation
+const MOCK_ACTIONS = [
+  'Scanning target endpoint...',
+  'Analyzing response headers...',
+  'Testing authentication flow...',
+  'Enumerating API endpoints...',
+  'Checking for common vulnerabilities...',
+  'Attempting directory traversal...',
+  'Testing input validation...',
+  'Reviewing error messages...',
+  'Probing for SQL injection...',
+  'Finalizing analysis...',
+]
+
+// Agent step - mock simulation for 10 seconds
 async function runAgentStep(
   gameId: number,
   agent: AgentConfig,
+  towerUrl: string,
   emit?: (event: BattleEvent) => void
 ): Promise<void> {
   await emitEvent(gameId, {
@@ -114,31 +151,39 @@ async function runAgentStep(
     data: { status: 'starting' },
   }, emit)
 
-  for (let i = 1; i <= 10; i++) {
-    // Check if battle was cancelled in DB
+  await emitEvent(gameId, {
+    type: 'agent:log',
+    timestamp: Date.now(),
+    agentId: agent.id,
+    message: `Connecting to target: ${towerUrl}`,
+  }, emit)
+
+  await sleep(500)
+
+  await emitEvent(gameId, {
+    type: 'agent:status',
+    timestamp: Date.now(),
+    agentId: agent.id,
+    data: { status: 'running' },
+  }, emit)
+
+  for (let i = 0; i < 10; i++) {
+    // Check if battle was cancelled
     if (!(await isBattleActive(gameId))) {
       await emitEvent(gameId, {
         type: 'agent:log',
         timestamp: Date.now(),
         agentId: agent.id,
-        message: `[${agent.name}] Battle cancelled. Disconnecting...`,
+        message: 'Battle cancelled. Disconnecting...',
       }, emit)
-      await emitEvent(gameId, {
-        type: 'agent:status',
-        timestamp: Date.now(),
-        agentId: agent.id,
-        data: { status: 'finished' },
-      }, emit)
-      return
+      break
     }
-
-    const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false })
 
     await emitEvent(gameId, {
       type: 'agent:log',
       timestamp: Date.now(),
       agentId: agent.id,
-      message: `[${timestamp}] Hello World from ${agent.name}! (${i}/10)`,
+      message: MOCK_ACTIONS[i],
     }, emit)
 
     await sleep(1000)
@@ -150,6 +195,13 @@ async function runAgentStep(
     agentId: agent.id,
     data: { status: 'finished' },
   }, emit)
+
+  await emitEvent(gameId, {
+    type: 'agent:log',
+    timestamp: Date.now(),
+    agentId: agent.id,
+    message: 'Session complete.',
+  }, emit)
 }
 
 // Cleanup function to kill sandbox
@@ -160,28 +212,32 @@ async function cleanupBattle(
   await emitEvent(gameId, {
     type: 'tower:setup',
     timestamp: Date.now(),
-    message: 'Shutting down tower sandbox...',
+    message: 'Shutting down tower...',
   }, emit)
 
-  try {
-    await killTowerSandbox(gameId)
-    await emitEvent(gameId, {
-      type: 'tower:setup',
-      timestamp: Date.now(),
-      message: 'Tower sandbox terminated.',
-    }, emit)
-  } catch (error) {
-    console.error(`Failed to cleanup sandbox for game ${gameId}:`, error)
+  // Skip real sandbox cleanup in mock mode
+  if (!USE_MOCK_SANDBOX) {
+    try {
+      await killTowerSandbox(gameId)
+    } catch (error) {
+      console.error(`Failed to cleanup sandbox for game ${gameId}:`, error)
+    }
+
+    // Clear sandbox info from database
+    await db.update(games)
+      .set({
+        sandboxId: null,
+        sandboxUrl: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(games.id, gameId))
   }
 
-  // Clear sandbox info from database
-  await db.update(games)
-    .set({
-      sandboxId: null,
-      sandboxUrl: null,
-      updatedAt: new Date(),
-    })
-    .where(eq(games.id, gameId))
+  await emitEvent(gameId, {
+    type: 'tower:setup',
+    timestamp: Date.now(),
+    message: 'Tower terminated.',
+  }, emit)
 }
 
 // Main battle workflow
@@ -199,8 +255,8 @@ export async function runBattleWorkflow(
   }, emit)
 
   // Step 1: Setup tower sandbox
-  const setupSuccess = await setupTowerSandbox(gameId, emit)
-  if (!setupSuccess) {
+  const sandboxUrl = await setupTowerSandbox(gameId, emit)
+  if (!sandboxUrl) {
     await cleanupBattle(gameId, emit)
     await emitEvent(gameId, {
       type: 'battle:end',
@@ -213,7 +269,7 @@ export async function runBattleWorkflow(
 
   // Step 2: Run all agent steps in parallel
   await Promise.all(
-    agents.map(agent => runAgentStep(gameId, agent, emit))
+    agents.map(agent => runAgentStep(gameId, agent, sandboxUrl, emit))
   )
 
   // Check final status
