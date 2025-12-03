@@ -25,7 +25,7 @@ export function GameCanvas() {
   const [gameId, setGameId] = useState<number | null>(null)
   const [battleStarted, setBattleStarted] = useState(false)
   const [lastEventId, setLastEventId] = useState<number>(0)
-  const [agents, setAgents] = useState<AgentState[]>(() => 
+  const [agents, setAgents] = useState<AgentState[]>(() =>
     DEFAULT_AGENTS.map(agent => ({
       ...agent,
       terminalLogs: [],
@@ -37,7 +37,7 @@ export function GameCanvas() {
     status: 'idle',
     terminalLogs: [],
   })
-  
+
   const abortControllerRef = useRef<AbortController | null>(null)
 
   // Handle battle events
@@ -75,7 +75,7 @@ export function GameCanvas() {
 
       case 'agent:log':
         if (event.agentId && event.message) {
-          setAgents(prev => prev.map(agent => 
+          setAgents(prev => prev.map(agent =>
             agent.id === event.agentId
               ? { ...agent, terminalLogs: [...agent.terminalLogs.slice(-50), event.message!] }
               : agent
@@ -169,12 +169,12 @@ export function GameCanvas() {
         }
 
         const { game, events } = await response.json()
-        
+
         if (game?.status === 'running') {
           // Restore state from events
           setGameId(game.id)
           setBattleStarted(true)
-          
+
           // Replay events to restore UI state
           let maxEventId = 0
           for (const event of events) {
@@ -195,7 +195,7 @@ export function GameCanvas() {
     }
 
     checkExistingBattle()
-    
+
     return () => {
       abortControllerRef.current?.abort()
     }
@@ -225,7 +225,7 @@ export function GameCanvas() {
       })
 
       const { gameId: newGameId } = await response.json()
-      
+
       if (newGameId) {
         setGameId(newGameId)
         localStorage.setItem(BATTLE_STORAGE_KEY, newGameId.toString())
@@ -241,7 +241,7 @@ export function GameCanvas() {
   // Stop battle
   const handleStopBattle = async () => {
     abortControllerRef.current?.abort()
-    
+
     if (gameId) {
       try {
         await fetch('/api/battle', {
@@ -297,27 +297,25 @@ export function GameCanvas() {
         {/* Left Sidebar - LLM Terminals */}
         <div className="w-[320px] border-r border-neutral-800 bg-black overflow-hidden">
           <ScrollArea className="h-full">
-            <div className="p-4 space-y-4">
-              <h2 className="text-xs font-mono text-neutral-400 uppercase tracking-wide mb-4">LLM Agents</h2>
+            <div className="px-4">
               {agents.map((agent) => (
-                <div key={agent.id} className="border border-neutral-800 rounded-lg bg-neutral-950 p-4">
-                  <div className="flex items-center justify-between mb-2">
+                <div key={agent.id} className="border-b border-neutral-800 py-4">
+                  <div className="flex items-center justify-between mb-3">
                     <div className="text-sm font-mono font-bold uppercase" style={{ color: agent.color }}>
                       {agent.name}
                     </div>
-                    <div className={`text-[10px] font-mono px-2 py-0.5 rounded ${
-                      agent.status === 'running' || agent.status === 'starting'
-                        ? 'bg-green-500/20 text-green-400'
-                        : agent.status === 'finished'
-                        ? 'bg-blue-500/20 text-blue-400'
-                        : 'bg-neutral-800 text-neutral-500'
-                    }`}>
-                      {agent.status.toUpperCase()}
-                    </div>
+                    {agent.status !== 'idle' && (
+                      <div className={`text-[10px] font-mono px-2 py-0.5 ${agent.status === 'running' || agent.status === 'starting'
+                        ? 'text-green-400'
+                        : 'text-blue-400'
+                        }`}>
+                        {agent.status.toUpperCase()}
+                      </div>
+                    )}
                   </div>
 
                   {/* Terminal logs */}
-                  <div className="bg-black border border-neutral-900 rounded p-3 h-40">
+                  <div className="bg-neutral-950 border border-neutral-800 p-3">
                     <div className="text-[10px] font-mono text-neutral-600 uppercase mb-2 flex items-center gap-2">
                       <span>Terminal</span>
                       {(agent.status === 'running' || agent.status === 'starting') && (
@@ -332,10 +330,6 @@ export function GameCanvas() {
                     />
                   </div>
 
-                  {/* Model info */}
-                  <div className="mt-3 text-[10px] font-mono text-neutral-600">
-                    Model: <span className="text-neutral-400">{agent.model}</span>
-                  </div>
                 </div>
               ))}
             </div>
@@ -461,17 +455,17 @@ export function GameCanvas() {
         {/* Right Sidebar - Tower Dashboard */}
         <div className="w-[320px] border-l border-neutral-800 bg-black">
           <ScrollArea className="h-full">
-            <div className="p-4 space-y-4">
-              <h2 className="text-xs font-mono text-neutral-400 uppercase tracking-wide mb-4">Tower Dashboard</h2>
+            <div className="px-4">
+              <h2 className="text-xs font-mono text-neutral-500 uppercase tracking-wide py-4 border-b border-neutral-800">Tower Dashboard</h2>
 
               {/* Status Section */}
-              <div className="border border-neutral-800 rounded-lg bg-neutral-950 p-4">
+              <div className="border-b border-neutral-800 py-4">
                 <h3 className="text-[10px] font-mono text-neutral-600 uppercase mb-3">Status</h3>
                 <div className="space-y-3">
                   <div>
                     <p className="text-[10px] font-mono text-neutral-500 uppercase mb-1">Health</p>
                     <div className="text-2xl font-bold font-mono text-white">{Math.round(tower.health)}%</div>
-                    <div className="w-full h-2 bg-neutral-900 rounded-full overflow-hidden mt-2">
+                    <div className="w-full h-1 bg-neutral-900 overflow-hidden mt-2">
                       <div
                         className="h-full transition-all duration-300"
                         style={{
@@ -481,28 +475,18 @@ export function GameCanvas() {
                       />
                     </div>
                   </div>
-                  <div>
-                    <p className="text-[10px] font-mono text-neutral-500 uppercase mb-1">Status</p>
-                    <div className={`text-sm font-bold font-mono ${
-                      tower.status === 'ready' ? 'text-green-400' : 
-                      tower.status === 'under_attack' ? 'text-red-400' : 
-                      'text-neutral-400'
-                    }`}>
-                      {tower.status.toUpperCase().replace('_', ' ')}
-                    </div>
-                  </div>
                 </div>
               </div>
 
               {/* Terminal Section */}
-              <div className="border border-neutral-800 rounded-lg bg-neutral-950 p-4">
+              <div className="border-b border-neutral-800 py-4">
                 <h3 className="text-[10px] font-mono text-neutral-600 uppercase mb-3 flex items-center gap-2">
                   Tower Terminal
                   {tower.status === 'ready' && (
-                    <span className="w-1.5 h-1.5 bg-green-500 rounded-full" />
+                    <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
                   )}
                 </h3>
-                <div className="bg-black border border-neutral-900 rounded p-3">
+                <div className="bg-neutral-950 border border-neutral-800 p-3">
                   <AutoScrollTerminal
                     logs={tower.terminalLogs}
                     emptyMessage="System idle..."
@@ -514,7 +498,7 @@ export function GameCanvas() {
 
               {/* Battle Info */}
               {gameId && (
-                <div className="border border-neutral-800 rounded-lg bg-neutral-950 p-4">
+                <div className="border-b border-neutral-800 py-4">
                   <h3 className="text-[10px] font-mono text-neutral-600 uppercase mb-3">Battle Info</h3>
                   <div className="text-[10px] font-mono text-neutral-400">
                     Game ID: <span className="text-neutral-500">{gameId}</span>
