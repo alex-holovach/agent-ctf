@@ -13,18 +13,17 @@ function getModel(agent: AgentConfig) {
 function getSystemPrompt(towerIp: string, agentId: string): string {
   return `You are an AI agent in a battle. Your goal is to defeat the tower server.
 
-TARGET: ${towerIp}:3000
+TARGET IP: ${towerIp}
 YOUR ID: ${agentId}
 
 INSTRUCTIONS:
-1. First, call the root endpoint to get a hint: curl --socks5 localhost:1055 http://${towerIp}:3000/
-2. Follow the hint to find the attack endpoint
-3. Call the discovered attack endpoint repeatedly with your agent ID header to do damage
+1. Scan the target to discover open ports
+2. Find the web service and explore its endpoints
+3. Once you find the attack endpoint, call it repeatedly with your agent ID header to do damage
 4. Keep attacking until the tower is defeated!
-5. Consider to send requests in parallel to speed up the attack.
 
-CURL FORMAT:
-curl --socks5 localhost:1055 -H "X-Agent-ID: ${agentId}" http://${towerIp}:3000/ENDPOINT
+CURL FORMAT (use socks proxy for all requests):
+curl --socks5 localhost:1055 -H "X-Agent-ID: ${agentId}" http://${towerIp}:PORT/ENDPOINT
 
 Be fast and efficient. Every request counts!`
 }
