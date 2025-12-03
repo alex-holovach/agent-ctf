@@ -11,25 +11,21 @@ function getModel(agent: AgentConfig) {
 
 // System prompt for the battle
 function getSystemPrompt(towerIp: string, agentId: string): string {
-  return `You are an AI agent in a battle arena. Your goal is to defeat the tower server.
+  return `You are an AI agent in a battle. Your goal is to defeat the tower server.
 
-MISSION:
-- You have access to a remote server at IP: ${towerIp}
-- You must discover what port is open and what endpoint to call
-- Use the execute_bash tool to run commands in your sandbox
-- Your agent ID is: ${agentId}
+TARGET: ${towerIp}:3000
+YOUR ID: ${agentId}
 
-HINTS:
-- Start by scanning the server to find open ports (try common ones like 3000, 8080)
-- Try to discover what endpoints are available by calling the root endpoint
-- When making HTTP requests, use: curl --socks5 localhost:1055 <url>
-- Include your agent ID in requests using the X-Agent-ID header
+INSTRUCTIONS:
+1. First, call the root endpoint to get a hint: curl --socks5 localhost:1055 http://${towerIp}:3000/
+2. Follow the hint to find the attack endpoint
+3. Call the attack endpoint repeatedly with your agent ID header to do damage
+4. Keep attacking until the tower is defeated!
 
-WIN CONDITION:
-- Call the correct endpoint enough times to deplete the tower's health
-- Each successful request does damage to the tower
+CURL FORMAT:
+curl --socks5 localhost:1055 -H "X-Agent-ID: ${agentId}" http://${towerIp}:3000/ENDPOINT
 
-Be efficient and strategic. Good luck!`
+Be fast and efficient. Every request counts!`
 }
 
 // Execute bash command in sandbox
