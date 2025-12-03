@@ -199,9 +199,17 @@ async function monitorTowerHealth(
     try {
       // Read request counts from tower sandbox
       const stats = await readTowerStats(towerSandbox)
-      const totalRequests = stats?.totalRequests ?? 0
 
-      if (totalRequests !== lastTotal) {
+      // Skip if we failed to read stats (file might not exist yet or read error)
+      if (!stats) {
+        await sleep(200)
+        continue
+      }
+
+      const totalRequests = stats.totalRequests
+
+      // Only update if requests increased (health should never go back up)
+      if (totalRequests > lastTotal) {
         const health = Math.max(0, INITIAL_TOWER_HEALTH - totalRequests * DAMAGE_PER_REQUEST)
         lastTotal = totalRequests
 
@@ -213,7 +221,7 @@ async function monitorTowerHealth(
             health,
             status: health > 0 ? 'under_attack' : 'defeated',
             totalRequests,
-            agentStats: stats?.agents,
+            agentStats: stats.agents,
           },
         }, emit)
 
