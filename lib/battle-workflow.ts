@@ -2,7 +2,15 @@ import { db } from './db'
 import { games, gameEvents } from './db/schema'
 import { eq } from 'drizzle-orm'
 import type { AgentConfig, BattleEvent } from './types'
-import { createTowerSandbox, killTowerSandbox } from './sandbox'
+import {
+  createTowerSandbox,
+  killTowerSandbox,
+  createAgentSandbox,
+  killAllAgentSandboxes,
+  getAgentSandbox,
+  type SandboxInfo,
+  type AgentSandboxInfo,
+} from './sandbox'
 
 // Sleep utility
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
@@ -32,11 +40,11 @@ async function emitEvent(
   emit?.(event)
 }
 
-// Tower setup step - creates Vercel sandbox, returns URL or null on failure
+// Tower setup step - creates Vercel sandbox, returns sandbox info or null on failure
 async function setupTowerSandbox(
   gameId: number,
   emit?: (event: BattleEvent) => void
-): Promise<string | null> {
+): Promise<SandboxInfo | null> {
   await emitEvent(gameId, {
     type: 'tower:setup',
     timestamp: Date.now(),
@@ -77,13 +85,21 @@ async function setupTowerSandbox(
       message: `Tower sandbox ready at ${sandboxInfo.url}`,
     }, emit)
 
+    if (sandboxInfo.tailscaleIp) {
+      await emitEvent(gameId, {
+        type: 'tower:setup',
+        timestamp: Date.now(),
+        message: `Tower Tailscale IP: ${sandboxInfo.tailscaleIp}`,
+      }, emit)
+    }
+
     await emitEvent(gameId, {
       type: 'tower:status',
       timestamp: Date.now(),
-      data: { health: 100, status: 'ready', url: sandboxInfo.url },
+      data: { health: 100, status: 'ready', url: sandboxInfo.url, tailscaleIp: sandboxInfo.tailscaleIp },
     }, emit)
 
-    return sandboxInfo.url
+    return sandboxInfo
   } catch (error) {
     console.error('Sandbox creation failed:', error)
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
@@ -101,27 +117,75 @@ async function setupTowerSandbox(
   }
 }
 
-// Mock agent actions for simulation
-const MOCK_ACTIONS = [
-  'Scanning target endpoint...',
-  'Analyzing response headers...',
-  'Testing authentication flow...',
-  'Enumerating API endpoints...',
-  'Checking for common vulnerabilities...',
-  'Attempting directory traversal...',
-  'Testing input validation...',
-  'Reviewing error messages...',
-  'Probing for SQL injection...',
-  'Finalizing analysis...',
-]
+// Setup agent sandboxes - creates sandboxes for all agents in parallel
+async function setupAgentSandboxes(
+  gameId: number,
+  agents: AgentConfig[],
+  emit?: (event: BattleEvent) => void
+): Promise<Map<string, AgentSandboxInfo>> {
+  const agentSandboxes = new Map<string, AgentSandboxInfo>()
 
-// Agent step - mock simulation for 10 seconds
+  await emitEvent(gameId, {
+    type: 'tower:setup',
+    timestamp: Date.now(),
+    message: `Creating ${agents.length} agent sandboxes...`,
+  }, emit)
+
+  const results = await Promise.allSettled(
+    agents.map(async (agent) => {
+      await emitEvent(gameId, {
+        type: 'agent:log',
+        timestamp: Date.now(),
+        agentId: agent.id,
+        message: 'Creating sandbox environment...',
+      }, emit)
+
+      const sandboxInfo = await createAgentSandbox(gameId, agent.id)
+
+      await emitEvent(gameId, {
+        type: 'agent:log',
+        timestamp: Date.now(),
+        agentId: agent.id,
+        message: 'Sandbox ready with Tailscale connected.',
+      }, emit)
+
+      return { agentId: agent.id, sandboxInfo }
+    })
+  )
+
+  for (const result of results) {
+    if (result.status === 'fulfilled') {
+      agentSandboxes.set(result.value.agentId, result.value.sandboxInfo)
+    }
+  }
+
+  await emitEvent(gameId, {
+    type: 'tower:setup',
+    timestamp: Date.now(),
+    message: `${agentSandboxes.size}/${agents.length} agent sandboxes ready.`,
+  }, emit)
+
+  return agentSandboxes
+}
+
+// Agent step - sends 10 requests to tower via Tailscale
 async function runAgentStep(
   gameId: number,
   agent: AgentConfig,
-  towerUrl: string,
+  towerTailscaleIp: string,
   emit?: (event: BattleEvent) => void
 ): Promise<void> {
+  const sandbox = getAgentSandbox(gameId, agent.id)
+  if (!sandbox) {
+    await emitEvent(gameId, {
+      type: 'agent:log',
+      timestamp: Date.now(),
+      agentId: agent.id,
+      message: 'Error: Agent sandbox not found.',
+    }, emit)
+    return
+  }
+
   await emitEvent(gameId, {
     type: 'agent:status',
     timestamp: Date.now(),
@@ -133,7 +197,7 @@ async function runAgentStep(
     type: 'agent:log',
     timestamp: Date.now(),
     agentId: agent.id,
-    message: `Connecting to target: ${towerUrl}`,
+    message: `Targeting tower at ${towerTailscaleIp}:3000`,
   }, emit)
 
   await sleep(500)
@@ -145,6 +209,7 @@ async function runAgentStep(
     data: { status: 'running' },
   }, emit)
 
+  // Send 10 requests to the tower's hello endpoint
   for (let i = 0; i < 10; i++) {
     // Check if battle was cancelled
     if (!(await isBattleActive(gameId))) {
@@ -161,10 +226,65 @@ async function runAgentStep(
       type: 'agent:log',
       timestamp: Date.now(),
       agentId: agent.id,
-      message: MOCK_ACTIONS[i],
+      message: `Sending request ${i + 1}/10...`,
     }, emit)
 
-    await sleep(1000)
+    // Capture response
+    let responseText = ''
+    const { Writable } = require('stream')
+    const stdoutStream = new Writable({
+      write(chunk: Buffer, _encoding: string, callback: () => void) {
+        responseText += chunk.toString()
+        callback()
+      }
+    })
+
+    try {
+      const result = await sandbox.runCommand({
+        cmd: 'curl',
+        args: [
+          '-s',
+          '-H', `X-Agent-ID: ${agent.id}`,
+          `http://${towerTailscaleIp}:3000/hello`,
+        ],
+        stdout: stdoutStream,
+      })
+
+      if (result.exitCode === 0 && responseText) {
+        try {
+          const response = JSON.parse(responseText)
+          await emitEvent(gameId, {
+            type: 'agent:log',
+            timestamp: Date.now(),
+            agentId: agent.id,
+            message: `Response: ${response.message} (request #${response.requestNumber})`,
+          }, emit)
+        } catch {
+          await emitEvent(gameId, {
+            type: 'agent:log',
+            timestamp: Date.now(),
+            agentId: agent.id,
+            message: `Response: ${responseText.substring(0, 100)}`,
+          }, emit)
+        }
+      } else {
+        await emitEvent(gameId, {
+          type: 'agent:log',
+          timestamp: Date.now(),
+          agentId: agent.id,
+          message: `Request failed (exit: ${result.exitCode})`,
+        }, emit)
+      }
+    } catch (error) {
+      await emitEvent(gameId, {
+        type: 'agent:log',
+        timestamp: Date.now(),
+        agentId: agent.id,
+        message: `Request error: ${error instanceof Error ? error.message : 'Unknown'}`,
+      }, emit)
+    }
+
+    await sleep(500)
   }
 
   await emitEvent(gameId, {
@@ -182,7 +302,7 @@ async function runAgentStep(
   }, emit)
 }
 
-// Cleanup function to kill sandbox
+// Cleanup function to kill all sandboxes
 async function cleanupBattle(
   gameId: number,
   emit?: (event: BattleEvent) => void
@@ -190,13 +310,21 @@ async function cleanupBattle(
   await emitEvent(gameId, {
     type: 'tower:setup',
     timestamp: Date.now(),
-    message: 'Shutting down tower...',
+    message: 'Shutting down all sandboxes...',
   }, emit)
 
+  // Kill all agent sandboxes
+  try {
+    await killAllAgentSandboxes(gameId)
+  } catch (error) {
+    console.error(`Failed to cleanup agent sandboxes for game ${gameId}:`, error)
+  }
+
+  // Kill tower sandbox
   try {
     await killTowerSandbox(gameId)
   } catch (error) {
-    console.error(`Failed to cleanup sandbox for game ${gameId}:`, error)
+    console.error(`Failed to cleanup tower sandbox for game ${gameId}:`, error)
   }
 
   // Clear sandbox info from database
@@ -211,7 +339,7 @@ async function cleanupBattle(
   await emitEvent(gameId, {
     type: 'tower:setup',
     timestamp: Date.now(),
-    message: 'Tower terminated.',
+    message: 'All sandboxes terminated.',
   }, emit)
 }
 
@@ -230,27 +358,59 @@ export async function runBattleWorkflow(
   }, emit)
 
   // Step 1: Setup tower sandbox
-  const sandboxUrl = await setupTowerSandbox(gameId, emit)
-  if (!sandboxUrl) {
+  const towerInfo = await setupTowerSandbox(gameId, emit)
+  if (!towerInfo) {
     await cleanupBattle(gameId, emit)
     await emitEvent(gameId, {
       type: 'battle:end',
       timestamp: Date.now(),
-      message: 'Battle cancelled during setup',
+      message: 'Battle cancelled during tower setup',
       data: { gameId, cancelled: true },
     }, emit)
     return
   }
 
-  // Step 2: Run all agent steps in parallel
+  // Step 2: Setup agent sandboxes in parallel
+  const agentSandboxes = await setupAgentSandboxes(gameId, agents, emit)
+  if (agentSandboxes.size === 0) {
+    await cleanupBattle(gameId, emit)
+    await emitEvent(gameId, {
+      type: 'battle:end',
+      timestamp: Date.now(),
+      message: 'Battle cancelled - no agent sandboxes created',
+      data: { gameId, cancelled: true },
+    }, emit)
+    return
+  }
+
+  // Step 3: Run all agent steps in parallel (sending requests to tower)
+  const towerIp = towerInfo.tailscaleIp
+  if (!towerIp) {
+    await emitEvent(gameId, {
+      type: 'error',
+      timestamp: Date.now(),
+      message: 'Tower Tailscale IP not available. Agents cannot connect.',
+    }, emit)
+    await cleanupBattle(gameId, emit)
+    await emitEvent(gameId, {
+      type: 'battle:end',
+      timestamp: Date.now(),
+      message: 'Battle cancelled - tower not reachable via Tailscale',
+      data: { gameId, cancelled: true },
+    }, emit)
+    return
+  }
+
   await Promise.all(
-    agents.map(agent => runAgentStep(gameId, agent, sandboxUrl, emit))
+    agents
+      .filter(agent => agentSandboxes.has(agent.id))
+      .map(agent => runAgentStep(gameId, agent, towerIp, emit))
   )
 
   // Check final status
   const isStillActive = await isBattleActive(gameId)
 
-  // Step 3: Cleanup - kill the sandbox
+  // Step 4: Cleanup - kill all sandboxes
   await cleanupBattle(gameId, emit)
 
   // Mark game as finished in DB
