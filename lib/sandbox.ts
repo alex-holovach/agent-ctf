@@ -31,22 +31,6 @@ export async function createTowerSandbox(gameId: number): Promise<SandboxInfo> {
   // Store reference for cleanup
   activeSandboxes.set(gameId, sandbox)
 
-  // Install dependencies
-  const install = await sandbox.runCommand('npm', ['install'])
-
-  if (install.exitCode !== 0) {
-    await sandbox.stop()
-    activeSandboxes.delete(gameId)
-    throw new Error('Failed to install tower dependencies')
-  }
-
-  // Start the tower server in detached mode
-  await sandbox.runCommand({
-    cmd: 'npm',
-    args: ['run', 'start'],
-    detached: true,
-  })
-
   return {
     id: sandbox.sandboxId,
     url: sandbox.domain(3000),

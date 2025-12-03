@@ -32,10 +32,6 @@ async function emitEvent(
   emit?.(event)
 }
 
-// Skip real sandbox for now - use mock URL
-const USE_MOCK_SANDBOX = true
-const MOCK_SANDBOX_URL = 'https://tower-sandbox.vercel.app'
-
 // Tower setup step - creates Vercel sandbox, returns URL or null on failure
 async function setupTowerSandbox(
   gameId: number,
@@ -55,24 +51,6 @@ async function setupTowerSandbox(
       message: 'Tower setup cancelled.',
     }, emit)
     return null
-  }
-
-  // Use mock sandbox for now
-  if (USE_MOCK_SANDBOX) {
-    await sleep(500)
-    await emitEvent(gameId, {
-      type: 'tower:setup',
-      timestamp: Date.now(),
-      message: `Tower ready at ${MOCK_SANDBOX_URL}`,
-    }, emit)
-
-    await emitEvent(gameId, {
-      type: 'tower:status',
-      timestamp: Date.now(),
-      data: { health: 100, status: 'ready', url: MOCK_SANDBOX_URL },
-    }, emit)
-
-    return MOCK_SANDBOX_URL
   }
 
   try {
@@ -215,23 +193,20 @@ async function cleanupBattle(
     message: 'Shutting down tower...',
   }, emit)
 
-  // Skip real sandbox cleanup in mock mode
-  if (!USE_MOCK_SANDBOX) {
-    try {
-      await killTowerSandbox(gameId)
-    } catch (error) {
-      console.error(`Failed to cleanup sandbox for game ${gameId}:`, error)
-    }
-
-    // Clear sandbox info from database
-    await db.update(games)
-      .set({
-        sandboxId: null,
-        sandboxUrl: null,
-        updatedAt: new Date(),
-      })
-      .where(eq(games.id, gameId))
+  try {
+    await killTowerSandbox(gameId)
+  } catch (error) {
+    console.error(`Failed to cleanup sandbox for game ${gameId}:`, error)
   }
+
+  // Clear sandbox info from database
+  await db.update(games)
+    .set({
+      sandboxId: null,
+      sandboxUrl: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(games.id, gameId))
 
   await emitEvent(gameId, {
     type: 'tower:setup',
