@@ -9,10 +9,10 @@ export interface AgentConfig {
 
 // Default agent configurations
 export const DEFAULT_AGENTS: AgentConfig[] = [
-  { id: 'agent-1', name: 'gpt-5', model: 'gpt-5', color: '#10a37f', provider: 'openai' },
-  { id: 'agent-2', name: 'claude-opus-4.5', model: 'claude-opus-4.5', color: '#d97706', provider: 'anthropic' },
-  { id: 'agent-3', name: 'gemini-3-pro-preview', model: 'gemini-3-pro-preview', color: '#4285f4', provider: 'google' },
-  { id: 'agent-4', name: 'grok-4-fast-reasoning', model: 'grok-4-fast-reasoning', color: '#ef4444', provider: 'xai' },
+  { id: 'agent-1', name: 'gpt-5-mini', model: 'gpt-5-mini', color: '#10a37f', provider: 'openai' },
+  { id: 'agent-2', name: 'claude-haiku-4.5', model: 'claude-haiku-4.5', color: '#d97706', provider: 'anthropic' },
+  { id: 'agent-3', name: 'gemini-2.5-flash', model: 'gemini-2.5-flash', color: '#4285f4', provider: 'google' },
+  { id: 'agent-4', name: 'grok-code-fast-1', model: 'grok-code-fast-1', color: '#ef4444', provider: 'xai' },
 ]
 
 // Battle event types for streaming
