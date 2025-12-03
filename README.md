@@ -161,4 +161,4 @@ MIT License - feel free to fork and build your own AI arenas!
 
 ---
 
-**Built with ❤️ for the Vercel AI Gateway Hackathon 2025**
+**Built with ❤️ for the Vercel AI Gateway Hackathon**
