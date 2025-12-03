@@ -8,10 +8,11 @@ import { AutoScrollTerminal } from "@/components/auto-scroll-terminal"
 import Link from "next/link"
 import { DEFAULT_AGENTS, type AgentConfig, type BattleEvent } from "@/lib/types"
 
+const BATTLE_STORAGE_KEY = 'llm-battle-gameId'
+
 interface AgentState extends AgentConfig {
   terminalLogs: string[]
   status: 'idle' | 'starting' | 'running' | 'finished'
-  score: number
 }
 
 interface TowerState {
@@ -20,17 +21,15 @@ interface TowerState {
   terminalLogs: string[]
 }
 
-const BATTLE_STORAGE_KEY = 'llm-battle-gameId'
-
 export function GameCanvas() {
   const [gameId, setGameId] = useState<number | null>(null)
   const [battleStarted, setBattleStarted] = useState(false)
+  const [lastEventId, setLastEventId] = useState<number>(0)
   const [agents, setAgents] = useState<AgentState[]>(() => 
     DEFAULT_AGENTS.map(agent => ({
       ...agent,
       terminalLogs: [],
       status: 'idle',
-      score: 0,
     }))
   )
   const [tower, setTower] = useState<TowerState>({
@@ -39,51 +38,20 @@ export function GameCanvas() {
     terminalLogs: [],
   })
   
-  const eventSourceRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
 
-  // Check for existing battle on mount
-  useEffect(() => {
-    const checkExistingBattle = async () => {
-      const storedGameId = localStorage.getItem(BATTLE_STORAGE_KEY)
-      if (!storedGameId) return
-
-      try {
-        const response = await fetch(`/api/battle?gameId=${storedGameId}`)
-        if (response.ok) {
-          const { game } = await response.json()
-          if (game?.status === 'running') {
-            // Battle is still running - show as active but we can't reconnect to stream
-            setGameId(game.id)
-            setBattleStarted(true)
-            setTower(prev => ({
-              ...prev,
-              terminalLogs: ['Reconnected to existing battle...', 'Note: Live stream unavailable after page reload'],
-              status: 'ready',
-            }))
-          } else {
-            // Battle finished or cancelled, clear storage
-            localStorage.removeItem(BATTLE_STORAGE_KEY)
-          }
-        } else {
-          localStorage.removeItem(BATTLE_STORAGE_KEY)
-        }
-      } catch {
-        localStorage.removeItem(BATTLE_STORAGE_KEY)
-      }
+  // Handle battle events
+  const handleBattleEvent = useCallback((event: BattleEvent & { id?: number }) => {
+    // Track last event ID for resumability
+    if (event.id && event.id > lastEventId) {
+      setLastEventId(event.id)
     }
 
-    checkExistingBattle()
-  }, [])
-
-  // Handle battle events from stream
-  const handleBattleEvent = useCallback((event: BattleEvent) => {
     switch (event.type) {
       case 'battle:start':
         if (event.data?.gameId) {
           const id = event.data.gameId as number
           setGameId(id)
-          // Store in localStorage for persistence
           localStorage.setItem(BATTLE_STORAGE_KEY, id.toString())
         }
         break
@@ -91,7 +59,7 @@ export function GameCanvas() {
       case 'tower:setup':
         setTower(prev => ({
           ...prev,
-          terminalLogs: [...prev.terminalLogs.slice(-20), event.message || ''],
+          terminalLogs: [...prev.terminalLogs.slice(-50), event.message || ''],
         }))
         break
 
@@ -109,7 +77,7 @@ export function GameCanvas() {
         if (event.agentId && event.message) {
           setAgents(prev => prev.map(agent => 
             agent.id === event.agentId
-              ? { ...agent, terminalLogs: [...agent.terminalLogs.slice(-20), event.message!] }
+              ? { ...agent, terminalLogs: [...agent.terminalLogs.slice(-50), event.message!] }
               : agent
           ))
         }
@@ -127,12 +95,10 @@ export function GameCanvas() {
 
       case 'battle:end':
         setBattleStarted(false)
-        setGameId(null)
-        // Clear localStorage
         localStorage.removeItem(BATTLE_STORAGE_KEY)
         setTower(prev => ({
           ...prev,
-          terminalLogs: [...prev.terminalLogs.slice(-20), event.message || 'Battle ended'],
+          terminalLogs: [...prev.terminalLogs.slice(-50), event.message || 'Battle ended'],
         }))
         break
 
@@ -140,93 +106,142 @@ export function GameCanvas() {
         console.error('Battle error:', event.message)
         setTower(prev => ({
           ...prev,
-          terminalLogs: [...prev.terminalLogs.slice(-20), `ERROR: ${event.message}`],
+          terminalLogs: [...prev.terminalLogs.slice(-50), `ERROR: ${event.message}`],
         }))
         break
     }
-  }, [])
+  }, [lastEventId])
 
-  // Start battle with streaming
-  const handleStartBattle = async () => {
-    // Reset state
-    setAgents(prev => prev.map(agent => ({
-      ...agent,
-      terminalLogs: [],
-      status: 'idle',
-      score: 0,
-    })))
-    setTower({
-      health: 100,
-      status: 'idle',
-      terminalLogs: [],
-    })
-
-    setBattleStarted(true)
+  // Connect to event stream
+  const connectToStream = useCallback(async (gId: number, fromEventId: number = 0) => {
+    abortControllerRef.current?.abort()
+    abortControllerRef.current = new AbortController()
 
     try {
-      abortControllerRef.current = new AbortController()
-      
-      const response = await fetch('/api/battle', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          action: 'start',
-          agents: DEFAULT_AGENTS,
-        }),
-        signal: abortControllerRef.current.signal,
-      })
+      const response = await fetch(
+        `/api/battle?gameId=${gId}&stream=true&lastEventId=${fromEventId}`,
+        { signal: abortControllerRef.current.signal }
+      )
 
-      if (!response.body) {
-        throw new Error('No response body')
-      }
+      if (!response.body) return
 
       const reader = response.body.getReader()
-      eventSourceRef.current = reader
       const decoder = new TextDecoder()
-
       let buffer = ''
-      
+
       while (true) {
         const { done, value } = await reader.read()
-        
-        if (done) {
-          break
-        }
+        if (done) break
 
         buffer += decoder.decode(value, { stream: true })
-        
-        // Process complete SSE messages
         const lines = buffer.split('\n\n')
         buffer = lines.pop() || ''
 
         for (const line of lines) {
           if (line.startsWith('data: ')) {
             try {
-              const event = JSON.parse(line.slice(6)) as BattleEvent
+              const event = JSON.parse(line.slice(6))
               handleBattleEvent(event)
-            } catch (e) {
-              console.error('Failed to parse event:', e)
+            } catch {
+              // Ignore parse errors
             }
           }
         }
       }
     } catch (error) {
       if ((error as Error).name !== 'AbortError') {
-        console.error('Battle stream error:', error)
+        console.error('Stream error:', error)
       }
-    } finally {
+    }
+  }, [handleBattleEvent])
+
+  // Check for existing battle on mount
+  useEffect(() => {
+    const checkExistingBattle = async () => {
+      const storedGameId = localStorage.getItem(BATTLE_STORAGE_KEY)
+      if (!storedGameId) return
+
+      try {
+        const response = await fetch(`/api/battle?gameId=${storedGameId}`)
+        if (!response.ok) {
+          localStorage.removeItem(BATTLE_STORAGE_KEY)
+          return
+        }
+
+        const { game, events } = await response.json()
+        
+        if (game?.status === 'running') {
+          // Restore state from events
+          setGameId(game.id)
+          setBattleStarted(true)
+          
+          // Replay events to restore UI state
+          let maxEventId = 0
+          for (const event of events) {
+            handleBattleEvent(event)
+            if (event.id > maxEventId) maxEventId = event.id
+          }
+          setLastEventId(maxEventId)
+
+          // Connect to stream for new events
+          connectToStream(game.id, maxEventId)
+        } else {
+          // Battle finished, clear storage
+          localStorage.removeItem(BATTLE_STORAGE_KEY)
+        }
+      } catch {
+        localStorage.removeItem(BATTLE_STORAGE_KEY)
+      }
+    }
+
+    checkExistingBattle()
+    
+    return () => {
+      abortControllerRef.current?.abort()
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Start battle
+  const handleStartBattle = async () => {
+    // Reset state
+    setAgents(prev => prev.map(agent => ({
+      ...agent,
+      terminalLogs: [],
+      status: 'idle',
+    })))
+    setTower({
+      health: 100,
+      status: 'idle',
+      terminalLogs: [],
+    })
+    setLastEventId(0)
+    setBattleStarted(true)
+
+    try {
+      const response = await fetch('/api/battle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agents: DEFAULT_AGENTS }),
+      })
+
+      const { gameId: newGameId } = await response.json()
+      
+      if (newGameId) {
+        setGameId(newGameId)
+        localStorage.setItem(BATTLE_STORAGE_KEY, newGameId.toString())
+        // Connect to stream
+        connectToStream(newGameId, 0)
+      }
+    } catch (error) {
+      console.error('Failed to start battle:', error)
       setBattleStarted(false)
-      eventSourceRef.current = null
-      abortControllerRef.current = null
     }
   }
 
   // Stop battle
   const handleStopBattle = async () => {
-    // Abort the fetch stream
     abortControllerRef.current?.abort()
     
-    // Notify server to cancel via DB update
     if (gameId) {
       try {
         await fetch('/api/battle', {
@@ -235,22 +250,14 @@ export function GameCanvas() {
           body: JSON.stringify({ action: 'stop', gameId }),
         })
       } catch {
-        // Ignore errors on stop
+        // Ignore errors
       }
     }
 
-    // Clear localStorage
     localStorage.removeItem(BATTLE_STORAGE_KEY)
     setBattleStarted(false)
     setGameId(null)
   }
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      abortControllerRef.current?.abort()
-    }
-  }, [])
 
   return (
     <div className="relative w-full h-screen bg-black flex flex-col overflow-hidden">
@@ -353,7 +360,6 @@ export function GameCanvas() {
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.5 }}
               >
-                {/* Tower dot matrix square */}
                 {Array.from({ length: 14 }).map((_, row) =>
                   Array.from({ length: 14 }).map((_, col) => (
                     <motion.circle
@@ -362,45 +368,19 @@ export function GameCanvas() {
                       cy={row * 5 - 35}
                       r="2"
                       fill={tower.health <= 30 ? "#ef4444" : tower.health <= 60 ? "#f97316" : "#71717a"}
-                      animate={{
-                        opacity: [0.6, 1, 0.6],
-                      }}
-                      transition={{
-                        duration: 2,
-                        repeat: Number.POSITIVE_INFINITY,
-                        delay: (row + col) * 0.05,
-                      }}
+                      animate={{ opacity: [0.6, 1, 0.6] }}
+                      transition={{ duration: 2, repeat: Infinity, delay: (row + col) * 0.05 }}
                     />
                   )),
                 )}
               </motion.g>
-              <text
-                x="0"
-                y="50"
-                textAnchor="middle"
-                className="text-xs font-mono fill-neutral-400 uppercase"
-                style={{ fontSize: "12px" }}
-              >
+              <text x="0" y="50" textAnchor="middle" fill="#a3a3a3" style={{ fontSize: "12px" }} className="font-mono uppercase">
                 TOWER
               </text>
-              <text
-                x="0"
-                y="64"
-                textAnchor="middle"
-                className="text-[10px] font-mono uppercase"
-                fill={tower.health <= 30 ? "#ef4444" : tower.health <= 60 ? "#f97316" : "#71717a"}
-                style={{ fontSize: "10px" }}
-              >
+              <text x="0" y="64" textAnchor="middle" fill={tower.health <= 30 ? "#ef4444" : tower.health <= 60 ? "#f97316" : "#71717a"} style={{ fontSize: "10px" }} className="font-mono uppercase">
                 HP: {Math.round(tower.health)}%
               </text>
-              <text
-                x="0"
-                y="78"
-                textAnchor="middle"
-                className="text-[9px] font-mono uppercase"
-                fill={tower.status === 'ready' ? "#22c55e" : "#71717a"}
-                style={{ fontSize: "9px" }}
-              >
+              <text x="0" y="78" textAnchor="middle" fill={tower.status === 'ready' ? "#22c55e" : "#71717a"} style={{ fontSize: "9px" }} className="font-mono uppercase">
                 {tower.status.toUpperCase().replace('_', ' ')}
               </text>
             </g>
@@ -419,7 +399,6 @@ export function GameCanvas() {
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ duration: 0.5, delay: index * 0.1 }}
                   >
-                    {/* Agent dot matrix triangle */}
                     {Array.from({ length: 10 }).map((_, row) =>
                       Array.from({ length: 10 - row }).map((_, col) => (
                         <motion.circle
@@ -430,46 +409,25 @@ export function GameCanvas() {
                           fill={agent.color}
                           animate={
                             agent.status === 'running' || agent.status === 'starting'
-                              ? {
-                                  opacity: [0.7, 1, 0.7],
-                                  scale: [1, 1.2, 1],
-                                }
+                              ? { opacity: [0.7, 1, 0.7], scale: [1, 1.2, 1] }
                               : {}
                           }
-                          transition={{
-                            duration: 1.5,
-                            repeat: Number.POSITIVE_INFINITY,
-                            delay: (row + col) * 0.03,
-                          }}
+                          transition={{ duration: 1.5, repeat: Infinity, delay: (row + col) * 0.03 }}
                         />
                       )),
                     )}
                   </motion.g>
-                  <text
-                    x="0"
-                    y="35"
-                    textAnchor="middle"
-                    fill={agent.color}
-                    className="text-[11px] font-mono font-bold uppercase"
-                    style={{ fontSize: "11px" }}
-                  >
+                  <text x="0" y="35" textAnchor="middle" fill={agent.color} style={{ fontSize: "11px" }} className="font-mono font-bold uppercase">
                     {agent.name}
                   </text>
-                  <text
-                    x="0"
-                    y="47"
-                    textAnchor="middle"
-                    className="text-[9px] font-mono"
-                    fill={agent.status === 'running' ? "#22c55e" : "#71717a"}
-                    style={{ fontSize: "9px" }}
-                  >
+                  <text x="0" y="47" textAnchor="middle" fill={agent.status === 'running' ? "#22c55e" : "#71717a"} style={{ fontSize: "9px" }} className="font-mono">
                     {agent.status.toUpperCase()}
                   </text>
                 </g>
               )
             })}
 
-            {/* Connection lines during battle */}
+            {/* Connection lines */}
             <AnimatePresence>
               {battleStarted && agents.map((agent, index) => {
                 const spacing = 180
@@ -484,10 +442,7 @@ export function GameCanvas() {
                 return (
                   <motion.line
                     key={`line-${agent.id}`}
-                    x1={fromX}
-                    y1={fromY}
-                    x2={toX}
-                    y2={toY}
+                    x1={fromX} y1={fromY} x2={toX} y2={toY}
                     stroke={agent.color}
                     strokeWidth="1"
                     strokeDasharray="4 4"
@@ -512,7 +467,6 @@ export function GameCanvas() {
               {/* Status Section */}
               <div className="border border-neutral-800 rounded-lg bg-neutral-950 p-4">
                 <h3 className="text-[10px] font-mono text-neutral-600 uppercase mb-3">Status</h3>
-
                 <div className="space-y-3">
                   <div>
                     <p className="text-[10px] font-mono text-neutral-500 uppercase mb-1">Health</p>
@@ -527,7 +481,6 @@ export function GameCanvas() {
                       />
                     </div>
                   </div>
-
                   <div>
                     <p className="text-[10px] font-mono text-neutral-500 uppercase mb-1">Status</p>
                     <div className={`text-sm font-bold font-mono ${
@@ -549,7 +502,6 @@ export function GameCanvas() {
                     <span className="w-1.5 h-1.5 bg-green-500 rounded-full" />
                   )}
                 </h3>
-
                 <div className="bg-black border border-neutral-900 rounded p-3">
                   <AutoScrollTerminal
                     logs={tower.terminalLogs}
@@ -566,6 +518,9 @@ export function GameCanvas() {
                   <h3 className="text-[10px] font-mono text-neutral-600 uppercase mb-3">Battle Info</h3>
                   <div className="text-[10px] font-mono text-neutral-400">
                     Game ID: <span className="text-neutral-500">{gameId}</span>
+                  </div>
+                  <div className="text-[10px] font-mono text-neutral-400 mt-1">
+                    Events: <span className="text-neutral-500">{lastEventId}</span>
                   </div>
                 </div>
               )}
