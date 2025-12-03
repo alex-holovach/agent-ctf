@@ -12,6 +12,7 @@ import {
   type SandboxInfo,
   type AgentSandboxInfo,
 } from './sandbox'
+import { runLLMAgent } from './llm-client'
 import type { Sandbox } from '@vercel/sandbox'
 
 // Game constants
@@ -251,13 +252,13 @@ async function monitorTowerHealth(
   }
 }
 
-// Agent step - sends requests to tower via Tailscale until battle ends
+// Agent step - runs LLM agent that discovers and attacks tower
 async function runAgentStep(
   gameId: number,
   agent: AgentConfig,
   towerTailscaleIp: string,
   emit?: (event: BattleEvent) => void
-): Promise<void> {
+): Promise<{ tokensUsed: number }> {
   const sandbox = getAgentSandbox(gameId, agent.id)
   if (!sandbox) {
     await emitEvent(gameId, {
@@ -266,7 +267,7 @@ async function runAgentStep(
       agentId: agent.id,
       message: 'Error: Agent sandbox not found.',
     }, emit)
-    return
+    return { tokensUsed: 0 }
   }
 
   await emitEvent(gameId, {
@@ -280,7 +281,7 @@ async function runAgentStep(
     type: 'agent:log',
     timestamp: Date.now(),
     agentId: agent.id,
-    message: `Targeting tower at ${towerTailscaleIp}:3000`,
+    message: `Initializing ${agent.name} agent...`,
   }, emit)
 
   await sleep(500)
@@ -292,77 +293,31 @@ async function runAgentStep(
     data: { status: 'running' },
   }, emit)
 
-  // Send requests continuously until battle ends (tower defeated or cancelled)
-  let requestCount = 0
-  while (await isBattleActive(gameId)) {
-    requestCount++
+  // Create emit wrapper that stores events in DB
+  const emitWrapper = async (event: BattleEvent) => {
+    await emitEvent(gameId, event, emit)
+  }
 
+  // Create battle active checker
+  const checkBattleActive = () => isBattleActive(gameId)
+
+  // Run the LLM agent
+  let tokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
+  try {
+    tokenUsage = await runLLMAgent(
+      agent,
+      towerTailscaleIp,
+      sandbox,
+      emitWrapper,
+      checkBattleActive
+    )
+  } catch (error) {
     await emitEvent(gameId, {
       type: 'agent:log',
       timestamp: Date.now(),
       agentId: agent.id,
-      message: `Sending request #${requestCount}...`,
+      message: `Agent error: ${error instanceof Error ? error.message : 'Unknown'}`,
     }, emit)
-
-    // Capture response
-    let responseText = ''
-    const { Writable } = require('stream')
-    const stdoutStream = new Writable({
-      write(chunk: Buffer, _encoding: string, callback: () => void) {
-        responseText += chunk.toString()
-        callback()
-      }
-    })
-
-    try {
-      // Use Tailscale's SOCKS proxy for userspace networking (no TUN device)
-      const result = await sandbox.runCommand({
-        cmd: 'curl',
-        args: [
-          '-s',
-          '--max-time', '10',
-          '--socks5', 'localhost:1055',
-          '-H', `X-Agent-ID: ${agent.id}`,
-          `http://${towerTailscaleIp}:3000/hello`,
-        ],
-        stdout: stdoutStream,
-      })
-
-      if (result.exitCode === 0 && responseText) {
-        try {
-          const response = JSON.parse(responseText)
-          await emitEvent(gameId, {
-            type: 'agent:log',
-            timestamp: Date.now(),
-            agentId: agent.id,
-            message: `Response: ${response.message} (request #${response.requestNumber})`,
-          }, emit)
-        } catch {
-          await emitEvent(gameId, {
-            type: 'agent:log',
-            timestamp: Date.now(),
-            agentId: agent.id,
-            message: `Response: ${responseText.substring(0, 100)}`,
-          }, emit)
-        }
-      } else {
-        await emitEvent(gameId, {
-          type: 'agent:log',
-          timestamp: Date.now(),
-          agentId: agent.id,
-          message: `Request failed (exit: ${result.exitCode})`,
-        }, emit)
-      }
-    } catch (error) {
-      await emitEvent(gameId, {
-        type: 'agent:log',
-        timestamp: Date.now(),
-        agentId: agent.id,
-        message: `Request error: ${error instanceof Error ? error.message : 'Unknown'}`,
-      }, emit)
-    }
-
-    await sleep(500)
   }
 
   await emitEvent(gameId, {
@@ -376,8 +331,10 @@ async function runAgentStep(
     type: 'agent:log',
     timestamp: Date.now(),
     agentId: agent.id,
-    message: `Battle ended. Sent ${requestCount} requests total.`,
+    message: `Battle ended. Used ${tokenUsage.totalTokens.toLocaleString()} tokens.`,
   }, emit)
+
+  return { tokensUsed: tokenUsage.totalTokens }
 }
 
 // Cleanup function to kill all sandboxes
@@ -481,15 +438,23 @@ export async function runBattleWorkflow(
 
   // Step 3: Run health monitor and all agents in parallel
   // - Health monitor tracks damage and ends game when tower health reaches 0
-  // - Agents send requests continuously until battle ends
-  await Promise.all([
+  // - Agents run LLM loops until battle ends
+  const activeAgents = agents.filter(agent => agentSandboxes.has(agent.id))
+  const agentPromises = activeAgents.map(agent => runAgentStep(gameId, agent, towerIp, emit))
+
+  const [, ...agentResults] = await Promise.all([
     // Health monitor (will stop when health=0 or battle cancelled)
     monitorTowerHealth(gameId, towerInfo.sandbox, emit),
     // All agents attack (will stop when isBattleActive returns false)
-    ...agents
-      .filter(agent => agentSandboxes.has(agent.id))
-      .map(agent => runAgentStep(gameId, agent, towerIp, emit)),
+    ...agentPromises,
   ])
+
+  // Collect token usage from agents
+  const tokenUsageByAgent = new Map<string, number>()
+  activeAgents.forEach((agent, index) => {
+    const result = agentResults[index] as { tokensUsed: number }
+    tokenUsageByAgent.set(agent.id, result?.tokensUsed || 0)
+  })
 
   // Check final status (game ends when tower defeated or manually cancelled)
   const isStillActive = await isBattleActive(gameId)
@@ -511,6 +476,7 @@ export async function runBattleWorkflow(
         name: agent.name,
         color: agent.color,
         damage: finalStats!.agents[agent.id] || 0,
+        tokensUsed: tokenUsageByAgent.get(agent.id) || 0,
       }))
 
       // Sort by damage (descending) to calculate places
@@ -525,7 +491,7 @@ export async function runBattleWorkflow(
             modelColor: result.color,
             damage: result.damage,
             place: index + 1,
-            tokensCount: 0, // TODO: Track actual tokens when AI is implemented
+            tokensCount: result.tokensUsed,
           })
         )
       )
@@ -542,7 +508,7 @@ export async function runBattleWorkflow(
             modelColor: r.color,
             damage: r.damage,
             place: i + 1,
-            tokensCount: 0,
+            tokensCount: r.tokensUsed,
           })),
         },
       }, emit)

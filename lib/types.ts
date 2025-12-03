@@ -16,13 +16,15 @@ export const DEFAULT_AGENTS: AgentConfig[] = [
 ]
 
 // Battle event types for streaming
-export type BattleEventType = 
+export type BattleEventType =
   | 'battle:start'
   | 'battle:end'
   | 'tower:setup'
   | 'tower:status'
   | 'agent:log'
   | 'agent:status'
+  | 'agent:thinking'  // LLM reasoning stream
+  | 'agent:tokens'    // Token usage updates
   | 'error'
 
 export interface BattleEvent {

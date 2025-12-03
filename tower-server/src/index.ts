@@ -17,6 +17,11 @@ setInterval(() => {
   }
 }, 100)
 
+// Root endpoint - hint for AI agents
+app.get('/', (c) => {
+  return c.text('Call /hello endpoint with X-Agent-ID header to defeat the tower')
+})
+
 // Hello endpoint - extracts agent ID from header and tracks request count
 app.get('/hello', (c) => {
   const agentId = c.req.header('X-Agent-ID') ?? 'unknown'
