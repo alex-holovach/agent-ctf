@@ -16,7 +16,7 @@ import { runLLMAgent } from './llm-client'
 import type { Sandbox } from '@vercel/sandbox'
 
 // Game constants
-const INITIAL_TOWER_HEALTH = 100
+const INITIAL_TOWER_HEALTH = 1000
 const DAMAGE_PER_REQUEST = 1
 
 // Sleep utility
@@ -212,14 +212,15 @@ async function monitorTowerHealth(
       // Only update if requests increased (health should never go back up)
       if (totalRequests > lastTotal) {
         const health = Math.max(0, INITIAL_TOWER_HEALTH - totalRequests * DAMAGE_PER_REQUEST)
+        const healthPercent = Math.round((health / INITIAL_TOWER_HEALTH) * 100)
         lastTotal = totalRequests
 
-        // Emit tower:status with updated health
+        // Emit tower:status with updated health (as percentage for UI)
         await emitEvent(gameId, {
           type: 'tower:status',
           timestamp: Date.now(),
           data: {
-            health,
+            health: healthPercent,
             status: health > 0 ? 'under_attack' : 'defeated',
             totalRequests,
             agentStats: stats.agents,
@@ -230,7 +231,7 @@ async function monitorTowerHealth(
         await emitEvent(gameId, {
           type: 'tower:setup',
           timestamp: Date.now(),
-          message: `Received ${totalRequests} requests. Health: ${health}%`,
+          message: `Received ${totalRequests} requests. Health: ${healthPercent}% (${health}/${INITIAL_TOWER_HEALTH})`,
         }, emit)
 
         // If health is 0, mark game as finished
