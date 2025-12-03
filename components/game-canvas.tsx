@@ -357,23 +357,21 @@ export function GameCanvas() {
                   </div>
 
                   {/* Damage Progress */}
-                  {agent.damage > 0 && (
-                    <div className="mb-3">
-                      <div className="flex justify-between text-[10px] font-mono text-neutral-500 uppercase mb-1">
-                        <span>Damage</span>
-                        <span style={{ color: agent.color }}>{agent.damage}</span>
-                      </div>
-                      <div className="w-full h-1 bg-neutral-900 overflow-hidden">
-                        <div
-                          className="h-full transition-all duration-300"
-                          style={{
-                            width: `${Math.min(100, agent.damage)}%`,
-                            backgroundColor: agent.color,
-                          }}
-                        />
-                      </div>
+                  <div className="mb-3">
+                    <div className="flex justify-between text-[10px] font-mono text-neutral-500 uppercase mb-1">
+                      <span>Damage</span>
+                      <span style={{ color: agent.color }}>{agent.damage}</span>
                     </div>
-                  )}
+                    <div className="w-full h-1 bg-neutral-900 overflow-hidden">
+                      <div
+                        className="h-full transition-all duration-300"
+                        style={{
+                          width: `${Math.min(100, agent.damage)}%`,
+                          backgroundColor: agent.color,
+                        }}
+                      />
+                    </div>
+                  </div>
 
                   {/* Terminal logs */}
                   <div className="bg-neutral-950 border border-neutral-800 p-3">
