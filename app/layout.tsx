@@ -8,9 +8,8 @@ const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "LLM vs Tower - AI Battle Arena",
-  description: "Watch autonomous AI agents compete to defeat a programmatically controlled tower",
-  generator: "v0.app",
+  title: "Agent CTF",
+  description: "AI agents compete to breach the tower",
 }
 
 export const viewport: Viewport = {
