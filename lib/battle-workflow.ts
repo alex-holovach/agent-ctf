@@ -117,7 +117,7 @@ async function setupTowerSandbox(
   }
 }
 
-// Setup agent sandboxes - creates sandboxes for all agents in parallel
+// Setup agent sandboxes - creates sandboxes sequentially to avoid rate limits
 async function setupAgentSandboxes(
   gameId: number,
   agents: AgentConfig[],
@@ -131,15 +131,16 @@ async function setupAgentSandboxes(
     message: `Creating ${agents.length} agent sandboxes...`,
   }, emit)
 
-  const results = await Promise.allSettled(
-    agents.map(async (agent) => {
-      await emitEvent(gameId, {
-        type: 'agent:log',
-        timestamp: Date.now(),
-        agentId: agent.id,
-        message: 'Creating sandbox environment...',
-      }, emit)
+  // Create sandboxes sequentially to avoid rate limits
+  for (const agent of agents) {
+    await emitEvent(gameId, {
+      type: 'agent:log',
+      timestamp: Date.now(),
+      agentId: agent.id,
+      message: 'Creating sandbox environment...',
+    }, emit)
 
+    try {
       const sandboxInfo = await createAgentSandbox(gameId, agent.id)
 
       await emitEvent(gameId, {
@@ -149,13 +150,15 @@ async function setupAgentSandboxes(
         message: 'Sandbox ready with Tailscale connected.',
       }, emit)
 
-      return { agentId: agent.id, sandboxInfo }
-    })
-  )
-
-  for (const result of results) {
-    if (result.status === 'fulfilled') {
-      agentSandboxes.set(result.value.agentId, result.value.sandboxInfo)
+      agentSandboxes.set(agent.id, sandboxInfo)
+    } catch (error) {
+      console.error(`[Battle] Agent sandbox creation failed for ${agent.id}:`, error)
+      await emitEvent(gameId, {
+        type: 'agent:log',
+        timestamp: Date.now(),
+        agentId: agent.id,
+        message: `Sandbox creation failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      }, emit)
     }
   }
 

@@ -150,24 +150,36 @@ async function installAndAuthTailscale(
     return null
   }
 
-  // Get Tailscale IP
-  let tailscaleIp = ''
-  const ipStdout = new Writable({
-    write(chunk: Buffer, _encoding: string, callback: () => void) {
-      tailscaleIp += chunk.toString()
-      callback()
-    }
-  })
-  await sandbox.runCommand({
-    cmd: TAILSCALE,
-    args: ['ip', '-4'],
-    sudo: true,
-    stdout: ipStdout,
-  })
-  tailscaleIp = tailscaleIp.trim()
-  console.log(`[Sandbox] Tailscale IP: ${tailscaleIp}`)
+  // Wait a moment for Tailscale to fully connect
+  await new Promise(resolve => setTimeout(resolve, 1000))
 
-  return tailscaleIp
+  // Get Tailscale IP (try a few times as it may take a moment)
+  let tailscaleIp = ''
+  for (let attempt = 0; attempt < 3; attempt++) {
+    let ipOutput = ''
+    const ipStdout = new Writable({
+      write(chunk: Buffer, _encoding: string, callback: () => void) {
+        ipOutput += chunk.toString()
+        callback()
+      }
+    })
+    const ipResult = await sandbox.runCommand({
+      cmd: TAILSCALE,
+      args: ['ip', '-4'],
+      sudo: true,
+      stdout: ipStdout,
+    })
+    tailscaleIp = ipOutput.trim()
+    console.log(`[Sandbox] Tailscale IP attempt ${attempt + 1}: "${tailscaleIp}" (exit: ${ipResult.exitCode})`)
+
+    if (tailscaleIp && ipResult.exitCode === 0) {
+      break
+    }
+    await new Promise(resolve => setTimeout(resolve, 500))
+  }
+
+  console.log(`[Sandbox] Final Tailscale IP: ${tailscaleIp}`)
+  return tailscaleIp || null
 }
 
 /**
@@ -250,27 +262,33 @@ export async function createAgentSandbox(gameId: number, agentId: string): Promi
   console.log(`[Sandbox] Creating agent sandbox for ${agentId} in game ${gameId}...`)
   const createStart = Date.now()
 
-  const sandbox = await Sandbox.create({
-    resources: { vcpus: 1 },
-    timeout: SANDBOX_TIMEOUT_MS,
-    runtime: 'node22',
-  })
+  try {
+    const sandbox = await Sandbox.create({
+      resources: { vcpus: 2 },
+      timeout: SANDBOX_TIMEOUT_MS,
+      runtime: 'node22',
+    })
 
-  console.log(`[Sandbox] Agent sandbox created in ${Date.now() - createStart}ms`)
+    console.log(`[Sandbox] Agent ${agentId} sandbox created in ${Date.now() - createStart}ms`)
 
-  // Store reference for cleanup
-  const key = `${gameId}-${agentId}`
-  activeAgentSandboxes.set(key, sandbox)
+    // Store reference for cleanup
+    const key = `${gameId}-${agentId}`
+    activeAgentSandboxes.set(key, sandbox)
 
-  // Install and authenticate Tailscale
-  await installAndAuthTailscale(sandbox, `agent-${agentId}-${gameId}`)
+    // Install and authenticate Tailscale
+    console.log(`[Sandbox] Installing Tailscale for agent ${agentId}...`)
+    await installAndAuthTailscale(sandbox, `agent-${agentId}-${gameId}`)
 
-  console.log(`[Sandbox] Total agent setup time: ${Date.now() - createStart}ms`)
+    console.log(`[Sandbox] Agent ${agentId} total setup time: ${Date.now() - createStart}ms`)
 
-  return {
-    id: sandbox.sandboxId,
-    agentId,
-    sandbox,
+    return {
+      id: sandbox.sandboxId,
+      agentId,
+      sandbox,
+    }
+  } catch (error) {
+    console.error(`[Sandbox] Failed to create agent sandbox for ${agentId}:`, error)
+    throw error
   }
 }
 
