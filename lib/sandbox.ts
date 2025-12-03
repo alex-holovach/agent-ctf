@@ -40,6 +40,10 @@ setInterval(() => {
   } catch {}
 }, 100)
 
+app.get('/', (c) => {
+  return c.text('Call /hello endpoint with X-Agent-ID header to defeat the tower')
+})
+
 app.get('/hello', (c) => {
   const agentId = c.req.header('X-Agent-ID') ?? 'unknown'
   const currentCount = requestCounts.get(agentId) ?? 0
