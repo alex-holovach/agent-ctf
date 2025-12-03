@@ -415,7 +415,7 @@ export function GameCanvas() {
       {/* Main Content */}
       <div className="flex-1 flex min-h-0">
         {/* Left Sidebar - LLM Terminals */}
-        <div className="w-[320px] border-r border-neutral-800 bg-black overflow-hidden">
+        <div className="w-[400px] border-r border-neutral-800 bg-black overflow-hidden">
           <ScrollArea className="h-full">
             <div className="px-4">
               {(() => {
