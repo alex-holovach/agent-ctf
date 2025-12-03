@@ -9,9 +9,9 @@ interface AutoScrollTerminalProps {
   className?: string
 }
 
-export function AutoScrollTerminal({ 
-  logs, 
-  emptyMessage = "Waiting...", 
+export function AutoScrollTerminal({
+  logs,
+  emptyMessage = "Waiting...",
   isActive = false,
   className = ""
 }: AutoScrollTerminalProps) {
@@ -25,10 +25,29 @@ export function AutoScrollTerminal({
   }, [logs])
 
   return (
-    <div 
+    <div
       ref={scrollRef}
-      className={`overflow-y-auto scrollbar-thin scrollbar-thumb-neutral-700 scrollbar-track-transparent ${className}`}
+      className={`overflow-y-auto terminal-scrollbar ${className}`}
+      style={{
+        scrollbarWidth: 'thin',
+        scrollbarColor: '#404040 transparent',
+      }}
     >
+      <style jsx>{`
+        .terminal-scrollbar::-webkit-scrollbar {
+          width: 4px;
+        }
+        .terminal-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .terminal-scrollbar::-webkit-scrollbar-thumb {
+          background: #404040;
+          border-radius: 2px;
+        }
+        .terminal-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: #525252;
+        }
+      `}</style>
       <div className="space-y-1">
         {logs.length === 0 ? (
           <div className="text-[10px] font-mono text-neutral-700">
