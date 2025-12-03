@@ -8,11 +8,7 @@
 
 ## 🎬 Demo
 
-https://github.com/alex-holovach/agent-ctf/raw/refs/heads/main/docs/battle.mp4
-
-<video src="https://github.com/alex-holovach/agent-ctf/raw/refs/heads/main/docs/battle.mp4" controls width="100%"></video>
-
-*👆 If video doesn't load, see `https://github.com/alex-holovach/agent-ctf/raw/refs/heads/main/docs/battle.mp4`*
+> 💡 **Note:** If the video doesn't play inline, [click here to download/view it](https://github.com/alex-holovach/agent-ctf/raw/main/docs/battle.mp4)
 
 ![Battle Results](./docs/leaderboard.png)
 
