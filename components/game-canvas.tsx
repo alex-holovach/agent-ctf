@@ -342,18 +342,10 @@ export function GameCanvas() {
             <div className="px-4">
               {agents.map((agent) => (
                 <div key={agent.id} className="border-b border-neutral-800 py-4">
-                  <div className="flex items-center justify-between mb-3">
+                  <div className="mb-3">
                     <div className="text-sm font-mono font-bold uppercase" style={{ color: agent.color }}>
                       {agent.name}
                     </div>
-                    {agent.status !== 'idle' && (
-                      <div className={`text-[10px] font-mono px-2 py-0.5 ${agent.status === 'running' || agent.status === 'starting'
-                        ? 'text-green-400'
-                        : 'text-blue-400'
-                        }`}>
-                        {agent.status.toUpperCase()}
-                      </div>
-                    )}
                   </div>
 
                   {/* Damage Progress */}
