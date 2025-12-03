@@ -4,6 +4,8 @@ import { pgTable, serial, text, integer, timestamp, jsonb } from "drizzle-orm/pg
 export const games = pgTable("games", {
   id: serial("id").primaryKey(),
   status: text("status").notNull().default("idle"), // idle, running, finished, cancelled
+  sandboxId: text("sandbox_id"), // Vercel sandbox ID for the tower
+  sandboxUrl: text("sandbox_url"), // Public URL for the tower sandbox
   startedAt: timestamp("started_at"),
   finishedAt: timestamp("finished_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),

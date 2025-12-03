@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { games, gameEvents } from '@/lib/db/schema'
 import { eq, gt, asc } from 'drizzle-orm'
 import { runBattleWorkflow } from '@/lib/battle-workflow'
+import { killTowerSandbox } from '@/lib/sandbox'
 import { DEFAULT_AGENTS, type AgentConfig, type BattleEvent } from '@/lib/types'
 
 // POST - Start a new battle or stop an existing one
@@ -12,9 +13,18 @@ export async function POST(request: Request) {
 
     // Stop an existing battle
     if (action === 'stop' && gameId) {
+      // Kill the sandbox first
+      try {
+        await killTowerSandbox(gameId)
+      } catch (error) {
+        console.error('Failed to kill sandbox:', error)
+      }
+
       const [updatedGame] = await db.update(games)
         .set({
           status: 'cancelled',
+          sandboxId: null,
+          sandboxUrl: null,
           finishedAt: new Date(),
           updatedAt: new Date(),
         })

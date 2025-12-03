@@ -57,6 +57,7 @@
     "@upstash/redis": "latest",
     "@vercel/analytics": "latest",
     "@vercel/postgres": "latest",
+    "@vercel/sandbox": "^1.0.4",
     "@xata.io/client": "latest",
     "autoprefixer": "^10.4.20",
     "better-sqlite3": "latest",

@@ -2,6 +2,7 @@ import { db } from './db'
 import { games, gameEvents } from './db/schema'
 import { eq } from 'drizzle-orm'
 import type { AgentConfig, BattleEvent } from './types'
+import { createTowerSandbox, killTowerSandbox } from './sandbox'
 
 // Sleep utility
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
@@ -31,7 +32,7 @@ async function emitEvent(
   emit?.(event)
 }
 
-// Tower setup step - empty for now, will implement sandbox later
+// Tower setup step - creates Vercel sandbox
 async function setupTowerSandbox(
   gameId: number,
   emit?: (event: BattleEvent) => void
@@ -41,10 +42,8 @@ async function setupTowerSandbox(
     timestamp: Date.now(),
     message: 'Initializing tower sandbox environment...',
   }, emit)
-  
-  await sleep(500)
-  
-  // Check if cancelled
+
+  // Check if cancelled before starting
   if (!(await isBattleActive(gameId))) {
     await emitEvent(gameId, {
       type: 'tower:setup',
@@ -53,20 +52,53 @@ async function setupTowerSandbox(
     }, emit)
     return false
   }
-  
-  await emitEvent(gameId, {
-    type: 'tower:setup',
-    timestamp: Date.now(),
-    message: 'Tower sandbox ready. Port 3000 exposed.',
-  }, emit)
-  
-  await emitEvent(gameId, {
-    type: 'tower:status',
-    timestamp: Date.now(),
-    data: { health: 100, status: 'ready' },
-  }, emit)
-  
-  return true
+
+  try {
+    await emitEvent(gameId, {
+      type: 'tower:setup',
+      timestamp: Date.now(),
+      message: 'Creating Vercel sandbox...',
+    }, emit)
+
+    const sandboxInfo = await createTowerSandbox(gameId)
+
+    // Store sandbox info in database
+    await db.update(games)
+      .set({
+        sandboxId: sandboxInfo.id,
+        sandboxUrl: sandboxInfo.url,
+        updatedAt: new Date(),
+      })
+      .where(eq(games.id, gameId))
+
+    await emitEvent(gameId, {
+      type: 'tower:setup',
+      timestamp: Date.now(),
+      message: `Tower sandbox ready at ${sandboxInfo.url}`,
+    }, emit)
+
+    await emitEvent(gameId, {
+      type: 'tower:status',
+      timestamp: Date.now(),
+      data: { health: 100, status: 'ready', url: sandboxInfo.url },
+    }, emit)
+
+    return true
+  } catch (error) {
+    console.error('Sandbox creation failed:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    await emitEvent(gameId, {
+      type: 'tower:setup',
+      timestamp: Date.now(),
+      message: `Failed to create sandbox: ${errorMessage}`,
+    }, emit)
+    await emitEvent(gameId, {
+      type: 'error',
+      timestamp: Date.now(),
+      message: `Tower setup failed: ${errorMessage}`,
+    }, emit)
+    return false
+  }
 }
 
 // Agent step - runs for 10 seconds, emitting logs every second
@@ -101,7 +133,7 @@ async function runAgentStep(
     }
 
     const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false })
-    
+
     await emitEvent(gameId, {
       type: 'agent:log',
       timestamp: Date.now(),
@@ -118,6 +150,38 @@ async function runAgentStep(
     agentId: agent.id,
     data: { status: 'finished' },
   }, emit)
+}
+
+// Cleanup function to kill sandbox
+async function cleanupBattle(
+  gameId: number,
+  emit?: (event: BattleEvent) => void
+): Promise<void> {
+  await emitEvent(gameId, {
+    type: 'tower:setup',
+    timestamp: Date.now(),
+    message: 'Shutting down tower sandbox...',
+  }, emit)
+
+  try {
+    await killTowerSandbox(gameId)
+    await emitEvent(gameId, {
+      type: 'tower:setup',
+      timestamp: Date.now(),
+      message: 'Tower sandbox terminated.',
+    }, emit)
+  } catch (error) {
+    console.error(`Failed to cleanup sandbox for game ${gameId}:`, error)
+  }
+
+  // Clear sandbox info from database
+  await db.update(games)
+    .set({
+      sandboxId: null,
+      sandboxUrl: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(games.id, gameId))
 }
 
 // Main battle workflow
@@ -137,6 +201,7 @@ export async function runBattleWorkflow(
   // Step 1: Setup tower sandbox
   const setupSuccess = await setupTowerSandbox(gameId, emit)
   if (!setupSuccess) {
+    await cleanupBattle(gameId, emit)
     await emitEvent(gameId, {
       type: 'battle:end',
       timestamp: Date.now(),
@@ -153,10 +218,13 @@ export async function runBattleWorkflow(
 
   // Check final status
   const isStillActive = await isBattleActive(gameId)
-  
+
+  // Step 3: Cleanup - kill the sandbox
+  await cleanupBattle(gameId, emit)
+
   // Mark game as finished in DB
   await db.update(games)
-    .set({ 
+    .set({
       status: isStillActive ? 'finished' : 'cancelled',
       finishedAt: new Date(),
       updatedAt: new Date(),
@@ -168,7 +236,7 @@ export async function runBattleWorkflow(
     type: 'battle:end',
     timestamp: Date.now(),
     message: isStillActive ? 'Battle finished!' : 'Battle was cancelled',
-    data: { 
+    data: {
       gameId,
       cancelled: !isStillActive,
     },
