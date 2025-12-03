@@ -272,8 +272,7 @@ export function GameCanvas() {
           </div>
           <div className="h-4 w-px bg-neutral-800" />
           <div>
-            <h1 className="text-sm font-mono text-neutral-400 uppercase tracking-wide">LLM vs Tower</h1>
-            <p className="text-xs text-neutral-600 font-mono">Battle Simulation</p>
+            <h1 className="text-sm font-mono text-neutral-400 uppercase tracking-wide">Agent CTF</h1>
           </div>
         </div>
         <div className="flex gap-2">
