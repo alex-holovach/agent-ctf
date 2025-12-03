@@ -117,7 +117,7 @@ async function setupTowerSandbox(
   }
 }
 
-// Setup agent sandboxes - creates sandboxes sequentially to avoid rate limits
+// Setup agent sandboxes - creates sandboxes in parallel
 async function setupAgentSandboxes(
   gameId: number,
   agents: AgentConfig[],
@@ -128,36 +128,46 @@ async function setupAgentSandboxes(
   await emitEvent(gameId, {
     type: 'tower:setup',
     timestamp: Date.now(),
-    message: `Creating ${agents.length} agent sandboxes...`,
+    message: `Creating ${agents.length} agent sandboxes in parallel...`,
   }, emit)
 
-  // Create sandboxes sequentially to avoid rate limits
-  for (const agent of agents) {
-    await emitEvent(gameId, {
-      type: 'agent:log',
-      timestamp: Date.now(),
-      agentId: agent.id,
-      message: 'Creating sandbox environment...',
-    }, emit)
+  // Emit starting message for all agents
+  await Promise.all(
+    agents.map(agent =>
+      emitEvent(gameId, {
+        type: 'agent:log',
+        timestamp: Date.now(),
+        agentId: agent.id,
+        message: 'Creating sandbox environment...',
+      }, emit)
+    )
+  )
 
-    try {
-      const sandboxInfo = await createAgentSandbox(gameId, agent.id)
+  // Create all sandboxes in parallel
+  const results = await Promise.allSettled(
+    agents.map(agent => createAgentSandbox(gameId, agent.id))
+  )
 
+  // Process results
+  for (let i = 0; i < results.length; i++) {
+    const result = results[i]
+    const agent = agents[i]
+
+    if (result.status === 'fulfilled') {
+      agentSandboxes.set(agent.id, result.value)
       await emitEvent(gameId, {
         type: 'agent:log',
         timestamp: Date.now(),
         agentId: agent.id,
         message: 'Sandbox ready with Tailscale connected.',
       }, emit)
-
-      agentSandboxes.set(agent.id, sandboxInfo)
-    } catch (error) {
-      console.error(`[Battle] Agent sandbox creation failed for ${agent.id}:`, error)
+    } else {
+      console.error(`[Battle] Agent sandbox creation failed for ${agent.id}:`, result.reason)
       await emitEvent(gameId, {
         type: 'agent:log',
         timestamp: Date.now(),
         agentId: agent.id,
-        message: `Sandbox creation failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        message: `Sandbox creation failed: ${result.reason instanceof Error ? result.reason.message : 'Unknown error'}`,
       }, emit)
     }
   }
@@ -243,10 +253,13 @@ async function runAgentStep(
     })
 
     try {
+      // Use Tailscale's SOCKS proxy for userspace networking (no TUN device)
       const result = await sandbox.runCommand({
         cmd: 'curl',
         args: [
           '-s',
+          '--max-time', '10',
+          '--socks5', 'localhost:1055',
           '-H', `X-Agent-ID: ${agent.id}`,
           `http://${towerTailscaleIp}:3000/hello`,
         ],

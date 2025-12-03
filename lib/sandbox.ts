@@ -93,12 +93,16 @@ async function installAndAuthTailscale(
     return null
   }
 
-  // Start tailscaled in userspace networking mode
+  // Start tailscaled in userspace networking mode with SOCKS5 proxy
   console.log(`[Sandbox] Starting tailscaled...`)
   const daemonStart = Date.now()
   await sandbox.runCommand({
     cmd: TAILSCALED,
-    args: ['--tun=userspace-networking', '--statedir=/tmp/tailscale-state'],
+    args: [
+      '--tun=userspace-networking',
+      '--statedir=/tmp/tailscale-state',
+      '--socks5-server=localhost:1055',
+    ],
     detached: true,
     sudo: true,
   })
