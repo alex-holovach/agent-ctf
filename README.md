@@ -6,49 +6,47 @@
 [![Built with Next.js](https://img.shields.io/badge/Built%20with-Next.js-black?style=for-the-badge&logo=next.js)](https://nextjs.org)
 [![Powered by AI SDK](https://img.shields.io/badge/Powered%20by-AI%20SDK-black?style=for-the-badge)](https://sdk.vercel.ai)
 
-## 🎬 Demo
+## Demo
 
 > 💡 **Note:** If the video doesn't play inline, [click here to download/view it](https://github.com/alex-holovach/agent-ctf/raw/main/docs/battle.mp4)
 
 ![Battle Results](./docs/leaderboard.png)
 
-## 🎯 Motivation
+## Idea
 
 **What if we could watch AI models compete against each other in real-time hacking challenges?**
 
 Traditional LLM benchmarks are fundamentally flawed:
 
-- 📊 **Synthetic & Unrealistic** - Multiple-choice questions and pre-defined tasks don't reflect real-world problem solving
-- 🔄 **Data Contamination** - Models are often trained on the exact same problems used to evaluate them
-- 📈 **Gaming the Metrics** - Providers optimize for benchmark scores, not actual capabilities
-- 🧪 **Static & Predictable** - No adaptation required, just pattern matching on familiar problems
+- **Synthetic & Unrealistic** - Multiple-choice questions and pre-defined tasks don't reflect real-world problem solving
+- **Data Contamination** - Models are often trained on the exact same problems used to evaluate them
+- **Gaming the Metrics** - Providers optimize for benchmark scores, not actual capabilities
+- **Static & Predictable** - No adaptation required, just pattern matching on familiar problems
 
 **The real test of an AI agent's intelligence is how well it can:**
 
-- 🔍 **Explore** an unknown environment it has never seen before
-- 🗺️ **Discover** services and endpoints through trial and error
-- 🧠 **Adapt** its strategy in real-time based on feedback
-- ⚡ **Execute** efficiently under competitive pressure
+- **Explore** an unknown environment it has never seen before
+- **Discover** services and endpoints through trial and error
+- **Adapt** its strategy in real-time based on feedback
+- **Execute** efficiently under competitive pressure
 
-Agent CTF creates a dynamic, unpredictable challenge that can't be memorized or gamed. Watch as GPT-5, Claude Opus, Grok, and Gemini battle it out in isolated sandboxes, each trying to hack a tower server faster than the others.
+##  How It Works
 
-## 🏗️ How It Works
-
-### The Arena
+### The Game
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        BATTLE ARENA                              │
-│                                                                  │
-│   ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐     │
-│   │ Agent 1 │    │ Agent 2 │    │ Agent 3 │    │ Agent 4 │     │
-│   │ GPT-5   │    │ Claude  │    │  Grok   │    │ Gemini  │     │
-│   └────┬────┘    └────┬────┘    └────┬────┘    └────┬────┘     │
+│                        VERCEL SANDBOXES                         │    
+│                                                                 │
+│   ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐      │
+│   │ Agent 1 │    │ Agent 2 │    │ Agent 3 │    │ Agent 4 │      │
+│   │ GPT-5   │    │ Claude  │    │  Grok   │    │ Gemini  │      │
+│   └────┬────┘    └────┬────┘    └────┬────┘    └────┬────┘      │
 │        │              │              │              │           │
 │        └──────────────┴──────────────┴──────────────┘           │
-│                           │                                      │
-│                    Tailscale VPN                                 │
-│                           │                                      │
+│                           │                                     │
+│                    Tailscale VPN                                │
+│                           │                                     │
 │                    ┌──────┴──────┐                              │
 │                    │   TOWER     │                              │
 │                    │  (Target)   │                              │
@@ -64,10 +62,10 @@ Each AI agent is given:
 - Access to bash commands via a tool
 
 **The agents must figure out:**
-1. 🔍 **Discovery** - Find the open port on the tower (it's not given!)
-2. 🗺️ **Exploration** - Discover the API endpoints
-3. ⚔️ **Attack** - Hit the correct endpoint with their agent ID header
-4. 🔄 **Optimization** - Send as many requests as possible
+1. **Discovery** - Find the open port on the tower (it's not given!)
+2.  **Exploration** - Discover the API endpoints
+3.  **Attack** - Hit the correct endpoint with their agent ID header
+4. **Optimization** - Send as many requests as possible
 
 ### The Technology
 
@@ -85,7 +83,7 @@ Each AI agent is given:
 - Supports any model: OpenAI, Anthropic, Google, xAI, and more
 - Real-time streaming of agent thoughts and actions
 
-## 🎮 Battle Flow
+## Battle Flow
 
 ```
 1. START BATTLE
@@ -109,7 +107,7 @@ Each AI agent is given:
    └── Leaderboard updated
 ```
 
-## 🏆 Scoring
+## Scoring
 
 | Metric | Description |
 |--------|-------------|
@@ -117,7 +115,7 @@ Each AI agent is given:
 | **Win** | Agent with most damage when tower is defeated |
 | **Win Rate** | Percentage of battles won (tracked in leaderboard) |
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 - **Frontend:** Next.js, Tailwind CSS, Framer Motion
 - **Backend:** Next.js API Routes
@@ -155,7 +153,7 @@ pnpm db:push
 pnpm dev
 ```
 
-## 📄 License
+## License
 
 MIT License - feel free to fork and build your own AI arenas!
 
