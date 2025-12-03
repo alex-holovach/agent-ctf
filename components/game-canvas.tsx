@@ -6,7 +6,10 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { AutoScrollTerminal } from "@/components/auto-scroll-terminal"
 import Link from "next/link"
+import useSWR from "swr"
 import { DEFAULT_AGENTS, type AgentConfig, type BattleEvent } from "@/lib/types"
+
+const fetcher = (url: string) => fetch(url).then(res => res.json())
 
 const BATTLE_STORAGE_KEY = 'llm-battle-gameId'
 
@@ -200,6 +203,35 @@ export function GameCanvas() {
       abortControllerRef.current?.abort()
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Poll game status every second to detect when battle ends
+  const { data: gameStatus } = useSWR(
+    battleStarted && gameId ? `/api/battle?gameId=${gameId}` : null,
+    fetcher,
+    { refreshInterval: 1000 }
+  )
+
+  // Handle game status changes from polling
+  useEffect(() => {
+    if (!gameStatus?.game || !battleStarted) return
+
+    const { game } = gameStatus
+
+    // If game is no longer running, update UI
+    if (game.status !== 'running') {
+      setBattleStarted(false)
+      localStorage.removeItem(BATTLE_STORAGE_KEY)
+
+      // Update tower status if defeated
+      if (game.status === 'finished') {
+        setTower(prev => ({
+          ...prev,
+          status: 'defeated',
+          terminalLogs: [...prev.terminalLogs.slice(-50), 'Battle ended - Tower defeated!'],
+        }))
+      }
+    }
+  }, [gameStatus, battleStarted])
 
   // Start battle
   const handleStartBattle = async () => {
