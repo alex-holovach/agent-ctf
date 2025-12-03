@@ -57,22 +57,22 @@ export async function GET(request: Request) {
       totalDamage: Number(entry.totalDamage) || 0,
       gamesPlayed: Number(entry.gamesPlayed) || 0,
       wins: Number(entry.wins) || 0,
-      winRate: entry.gamesPlayed > 0 
-        ? (Number(entry.wins) / Number(entry.gamesPlayed)) * 100 
+      winRate: entry.gamesPlayed > 0
+        ? (Number(entry.wins) / Number(entry.gamesPlayed)) * 100
         : 0,
       totalTokens: Number(entry.totalTokens) || 0,
-    }))
+    })).sort((a, b) => b.winRate - a.winRate)
 
     // Calculate summary stats
     const summary = {
-      totalGames: leaderboardData.length > 0 
+      totalGames: leaderboardData.length > 0
         ? Math.max(...leaderboardData.map(d => d.gamesPlayed))
         : 0,
       totalDamage: leaderboardData.reduce((sum, d) => sum + d.totalDamage, 0),
       totalTokens: leaderboardData.reduce((sum, d) => sum + d.totalTokens, 0),
     }
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       leaderboard: leaderboardData,
       summary,
     })
