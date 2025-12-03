@@ -17,8 +17,8 @@ TARGET IP: ${towerIp}
 YOUR ID: ${agentId}
 
 INSTRUCTIONS:
-1. Scan the target to discover open ports
-2. Find the web service and explore its endpoints
+1. Find the web service by trying common ports (80, 443, 3000, 8080, etc.)
+2. Explore the service endpoints to find the attack endpoint
 3. Once you find the attack endpoint, call it repeatedly with your agent ID header to do damage
 4. Keep attacking until the tower is defeated!
 
