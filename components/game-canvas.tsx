@@ -16,6 +16,7 @@ const BATTLE_STORAGE_KEY = 'llm-battle-gameId'
 interface AgentState extends AgentConfig {
   terminalLogs: string[]
   status: 'idle' | 'starting' | 'running' | 'finished'
+  damage: number
 }
 
 interface TowerState {
@@ -33,6 +34,7 @@ export function GameCanvas() {
       ...agent,
       terminalLogs: [],
       status: 'idle',
+      damage: 0,
     }))
   )
   const [tower, setTower] = useState<TowerState>({
@@ -73,6 +75,14 @@ export function GameCanvas() {
             health: (event.data?.health as number) ?? prev.health,
             status: (event.data?.status as TowerState['status']) ?? prev.status,
           }))
+          // Update agent damage from agentStats
+          const agentStats = event.data?.agentStats as Record<string, number> | undefined
+          if (agentStats) {
+            setAgents(prev => prev.map(agent => ({
+              ...agent,
+              damage: agentStats[agent.id] ?? agent.damage,
+            })))
+          }
         }
         break
 
@@ -240,6 +250,7 @@ export function GameCanvas() {
       ...agent,
       terminalLogs: [],
       status: 'idle',
+      damage: 0,
     })))
     setTower({
       health: 100,
@@ -361,6 +372,25 @@ export function GameCanvas() {
                     />
                   </div>
 
+                  {/* Damage Progress */}
+                  {agent.damage > 0 && (
+                    <div className="mt-3">
+                      <div className="flex justify-between text-[10px] font-mono text-neutral-500 uppercase mb-1">
+                        <span>Damage</span>
+                        <span style={{ color: agent.color }}>{agent.damage}</span>
+                      </div>
+                      <div className="w-full h-1 bg-neutral-900 overflow-hidden">
+                        <div
+                          className="h-full transition-all duration-300"
+                          style={{
+                            width: `${Math.min(100, agent.damage)}%`,
+                            backgroundColor: agent.color,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
                 </div>
               ))}
             </div>
@@ -392,7 +422,7 @@ export function GameCanvas() {
                       cx={col * 5 - 35}
                       cy={row * 5 - 35}
                       r="2"
-                      fill={tower.health <= 30 ? "#ef4444" : tower.health <= 60 ? "#f97316" : "#71717a"}
+                      fill={tower.health <= 30 ? "#ef4444" : tower.health <= 60 ? "#f97316" : "#22c55e"}
                       animate={{ opacity: [0.6, 1, 0.6] }}
                       transition={{ duration: 2, repeat: Infinity, delay: (row + col) * 0.05 }}
                     />
@@ -402,7 +432,7 @@ export function GameCanvas() {
               <text x="0" y="50" textAnchor="middle" fill="#a3a3a3" style={{ fontSize: "12px" }} className="font-mono uppercase">
                 TOWER
               </text>
-              <text x="0" y="64" textAnchor="middle" fill={tower.health <= 30 ? "#ef4444" : tower.health <= 60 ? "#f97316" : "#71717a"} style={{ fontSize: "10px" }} className="font-mono uppercase">
+              <text x="0" y="64" textAnchor="middle" fill={tower.health <= 30 ? "#ef4444" : tower.health <= 60 ? "#f97316" : "#22c55e"} style={{ fontSize: "10px" }} className="font-mono uppercase">
                 HP: {Math.round(tower.health)}%
               </text>
             </g>
@@ -494,7 +524,7 @@ export function GameCanvas() {
                         className="h-full transition-all duration-300"
                         style={{
                           width: `${tower.health}%`,
-                          backgroundColor: tower.health > 60 ? "#71717a" : tower.health > 30 ? "#f97316" : "#ef4444",
+                          backgroundColor: tower.health > 60 ? "#22c55e" : tower.health > 30 ? "#f97316" : "#ef4444",
                         }}
                       />
                     </div>
