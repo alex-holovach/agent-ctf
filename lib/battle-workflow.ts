@@ -194,6 +194,7 @@ async function monitorTowerHealth(
   towerSandbox: Sandbox,
   emit?: (event: BattleEvent) => void
 ): Promise<void> {
+  console.log(`[Battle] Health monitor starting for game ${gameId}`)
   let lastTotal = 0
 
   while (await isBattleActive(gameId)) {
@@ -236,12 +237,14 @@ async function monitorTowerHealth(
 
         // If health is 0, mark game as finished
         if (health <= 0) {
+          console.log(`[Battle] Tower defeated! Setting status to finished for game ${gameId}`)
           await emitEvent(gameId, {
             type: 'tower:setup',
             timestamp: Date.now(),
             message: 'TOWER DEFEATED! Health depleted.',
           }, emit)
           await db.update(games).set({ status: 'finished' }).where(eq(games.id, gameId))
+          console.log(`[Battle] Health monitor exiting for game ${gameId}`)
           break
         }
       }
@@ -251,6 +254,7 @@ async function monitorTowerHealth(
 
     await sleep(200) // Check every 200ms
   }
+  console.log(`[Battle] Health monitor loop ended for game ${gameId} (lastTotal=${lastTotal})`)
 }
 
 // Agent step - runs LLM agent that discovers and attacks tower
@@ -320,6 +324,8 @@ async function runAgentStep(
       message: `Agent error: ${error instanceof Error ? error.message : 'Unknown'}`,
     }, emit)
   }
+
+  console.log(`[Battle] Agent ${agent.id} finished for game ${gameId}`)
 
   await emitEvent(gameId, {
     type: 'agent:status',
@@ -443,17 +449,42 @@ export async function runBattleWorkflow(
   const activeAgents = agents.filter(agent => agentSandboxes.has(agent.id))
   const agentPromises = activeAgents.map(agent => runAgentStep(gameId, agent, towerIp, emit))
 
-  const [, ...agentResults] = await Promise.all([
-    // Health monitor (will stop when health=0 or battle cancelled)
-    monitorTowerHealth(gameId, towerInfo.sandbox, emit),
-    // All agents attack (will stop when isBattleActive returns false)
-    ...agentPromises,
+  console.log(`[Battle] Starting health monitor and ${agentPromises.length} agents for game ${gameId}`)
+
+  // Wrap agent promises with a timeout - agents might be stuck in long LLM calls
+  // even after battle ends, so we need to proceed after health monitor finishes
+  const AGENT_TIMEOUT_MS = 30000 // 30 seconds after battle ends
+
+  const agentPromisesWithTimeout = agentPromises.map(async (promise, index) => {
+    try {
+      return await promise
+    } catch (error) {
+      console.error(`[Battle] Agent ${index} error:`, error)
+      return { tokensUsed: 0 }
+    }
+  })
+
+  // First wait for health monitor to finish (battle ends)
+  await monitorTowerHealth(gameId, towerInfo.sandbox, emit)
+  console.log(`[Battle] Health monitor finished for game ${gameId}, waiting for agents with timeout...`)
+
+  // Then give agents some time to finish gracefully, but don't wait forever
+  const agentResults = await Promise.race([
+    Promise.all(agentPromisesWithTimeout),
+    new Promise<{ tokensUsed: number }[]>((resolve) => {
+      setTimeout(() => {
+        console.log(`[Battle] Agent timeout reached for game ${gameId}, proceeding anyway`)
+        resolve(activeAgents.map(() => ({ tokensUsed: 0 })))
+      }, AGENT_TIMEOUT_MS)
+    })
   ])
+
+  console.log(`[Battle] All promises resolved for game ${gameId}`)
 
   // Collect token usage from agents
   const tokenUsageByAgent = new Map<string, number>()
   activeAgents.forEach((agent, index) => {
-    const result = agentResults[index] as { tokensUsed: number }
+    const result = agentResults[index]
     tokenUsageByAgent.set(agent.id, result?.tokensUsed || 0)
   })
 

@@ -121,6 +121,8 @@ export async function runLLMAgent(
     content: 'Begin your attack on the tower. Discover the open port and endpoint, then attack!',
   })
 
+  console.log(`[LLM] Agent ${agent.id} starting loop`)
+
   while (await isBattleActive()) {
     try {
       const result = await generateText({
@@ -225,5 +227,6 @@ Returns the command output (truncated to last 500 chars if longer).`,
     }
   }
 
+  console.log(`[LLM] Agent ${agent.id} loop ended, returning usage: ${JSON.stringify(totalUsage)}`)
   return totalUsage
 }
