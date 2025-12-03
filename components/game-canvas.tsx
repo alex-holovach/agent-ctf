@@ -2,10 +2,17 @@
 
 import { useEffect, useState, useRef, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
+import { Maximize2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { AutoScrollTerminal } from "@/components/auto-scroll-terminal"
 import { ResultsTable, type GameResultEntry } from "@/components/results-table"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import confetti from "canvas-confetti"
 import Link from "next/link"
 import useSWR from "swr"
@@ -51,6 +58,7 @@ export function GameCanvas() {
   const [hasShownConfetti, setHasShownConfetti] = useState(false)
   const [showResults, setShowResults] = useState(false)
   const [gameResults, setGameResults] = useState<GameResultEntry[]>([])
+  const [maximizedTerminal, setMaximizedTerminal] = useState<{ title: string; logs: string[] } | null>(null)
 
   // Handle battle events
   const handleBattleEvent = useCallback((event: BattleEvent & { id?: number }) => {
@@ -472,11 +480,20 @@ export function GameCanvas() {
 
                     {/* Terminal logs */}
                     <div className="bg-neutral-950 border border-neutral-800 p-3">
-                      <div className="text-[10px] font-mono text-neutral-600 uppercase mb-2 flex items-center gap-2">
-                        <span>Terminal</span>
-                        {(agent.status === 'running' || agent.status === 'starting') && (
-                          <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                        )}
+                      <div className="text-[10px] font-mono text-neutral-600 uppercase mb-2 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span>Terminal</span>
+                          {(agent.status === 'running' || agent.status === 'starting') && (
+                            <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                          )}
+                        </div>
+                        <button
+                          onClick={() => setMaximizedTerminal({ title: `${agent.name} Terminal`, logs: agent.terminalLogs })}
+                          className="p-0.5 text-neutral-600 hover:text-neutral-400 transition-colors"
+                          title="Maximize"
+                        >
+                          <Maximize2 className="w-3 h-3" />
+                        </button>
                       </div>
                       <AutoScrollTerminal
                         logs={agent.terminalLogs}
@@ -679,11 +696,20 @@ export function GameCanvas() {
             </div>
 
             {/* Terminal Section */}
-            <h3 className="text-[10px] font-mono text-neutral-600 uppercase mb-3 flex items-center gap-2">
-              Tower Terminal
-              {tower.status === 'ready' && (
-                <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-              )}
+            <h3 className="text-[10px] font-mono text-neutral-600 uppercase mb-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                Tower Terminal
+                {tower.status === 'ready' && (
+                  <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                )}
+              </div>
+              <button
+                onClick={() => setMaximizedTerminal({ title: "Tower Terminal", logs: tower.terminalLogs })}
+                className="p-0.5 text-neutral-600 hover:text-neutral-400 transition-colors"
+                title="Maximize"
+              >
+                <Maximize2 className="w-3 h-3" />
+              </button>
             </h3>
           </div>
           <div className="flex-1 px-4 pb-4 min-h-0">
@@ -698,6 +724,30 @@ export function GameCanvas() {
           </div>
         </div>
       </div>
+
+      {/* Terminal Maximize Modal */}
+      <Dialog open={!!maximizedTerminal} onOpenChange={(open) => !open && setMaximizedTerminal(null)}>
+        <DialogContent className="!max-w-[80vw] !w-[80vw] h-[85vh] bg-neutral-950 border-neutral-800 flex flex-col">
+          <DialogHeader className="flex-shrink-0">
+            <DialogTitle className="text-neutral-200 font-mono text-sm">{maximizedTerminal?.title}</DialogTitle>
+          </DialogHeader>
+          <div
+            className="flex-1 overflow-y-auto overflow-x-hidden p-4 bg-neutral-900/50 rounded-md"
+            style={{
+              scrollbarWidth: 'thin',
+              scrollbarColor: '#404040 transparent',
+            }}
+          >
+            <div className="space-y-1 min-w-0">
+              {maximizedTerminal?.logs.map((log, i) => (
+                <div key={i} className="text-xs font-mono text-neutral-400 leading-relaxed break-all">
+                  {log}
+                </div>
+              ))}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
     </div>
   )

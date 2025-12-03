@@ -27,7 +27,7 @@ export function AutoScrollTerminal({
   return (
     <div
       ref={scrollRef}
-      className={`overflow-y-auto terminal-scrollbar ${className}`}
+      className={`overflow-y-auto overflow-x-hidden terminal-scrollbar ${className}`}
       style={{
         scrollbarWidth: 'thin',
         scrollbarColor: '#404040 transparent',
@@ -48,14 +48,14 @@ export function AutoScrollTerminal({
           background: #525252;
         }
       `}</style>
-      <div className="space-y-1">
+      <div className="space-y-1 min-w-0">
         {logs.length === 0 ? (
           <div className="text-[10px] font-mono text-neutral-700">
             {emptyMessage}
           </div>
         ) : (
           logs.map((log, i) => (
-            <div key={i} className="text-[10px] font-mono text-neutral-400 leading-relaxed">
+            <div key={i} className="text-[10px] font-mono text-neutral-400 leading-relaxed break-all">
               {log}
             </div>
           ))

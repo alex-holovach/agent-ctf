@@ -19,8 +19,9 @@ YOUR ID: ${agentId}
 INSTRUCTIONS:
 1. First, call the root endpoint to get a hint: curl --socks5 localhost:1055 http://${towerIp}:3000/
 2. Follow the hint to find the attack endpoint
-3. Call the attack endpoint repeatedly with your agent ID header to do damage
+3. Call the discovered attack endpoint repeatedly with your agent ID header to do damage
 4. Keep attacking until the tower is defeated!
+5. Consider to send requests in parallel to speed up the attack.
 
 CURL FORMAT:
 curl --socks5 localhost:1055 -H "X-Agent-ID: ${agentId}" http://${towerIp}:3000/ENDPOINT
