@@ -407,6 +407,13 @@ export function GameCanvas() {
               <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
                 <circle cx="10" cy="10" r="0.5" fill="#262626" opacity="0.4" />
               </pattern>
+              <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation="3" result="coloredBlur" />
+                <feMerge>
+                  <feMergeNode in="coloredBlur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
             </defs>
             <rect width="1000" height="600" fill="url(#grid)" />
 
@@ -506,6 +513,41 @@ export function GameCanvas() {
                 )
               })}
             </AnimatePresence>
+
+            {/* Attack projectiles */}
+            {battleStarted && agents.flatMap((agent, index) => {
+              const spacing = 180
+              const startX = 500 - ((agents.length - 1) * spacing) / 2
+              const fromX = startX + index * spacing
+              const fromY = 420
+              const toX = 500
+              const toY = 180
+
+              // Show projectiles when agent is actively attacking (running/starting) and has done damage
+              if ((agent.status !== 'running' && agent.status !== 'starting') || agent.damage === 0) return []
+
+              // Create multiple projectiles with staggered animations
+              return Array.from({ length: 3 }).map((_, projectileIndex) => (
+                <motion.circle
+                  key={`projectile-${agent.id}-${projectileIndex}`}
+                  r="5"
+                  fill={agent.color}
+                  filter="url(#glow)"
+                  animate={{
+                    cx: [fromX, toX],
+                    cy: [fromY, toY],
+                    opacity: [0.8, 1, 1, 0.2],
+                    scale: [1, 1.2, 1, 0.8],
+                  }}
+                  transition={{
+                    duration: 1,
+                    repeat: Infinity,
+                    delay: projectileIndex * 0.35,
+                    ease: "easeInOut",
+                  }}
+                />
+              ))
+            })}
           </svg>
         </div>
 
