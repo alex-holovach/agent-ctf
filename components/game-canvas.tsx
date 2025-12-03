@@ -340,49 +340,61 @@ export function GameCanvas() {
         <div className="w-[320px] border-r border-neutral-800 bg-black overflow-hidden">
           <ScrollArea className="h-full">
             <div className="px-4">
-              {agents.map((agent) => (
-                <div key={agent.id} className="border-b border-neutral-800 py-4">
-                  <div className="mb-3">
-                    <div className="text-sm font-mono font-bold uppercase" style={{ color: agent.color }}>
-                      {agent.name}
-                    </div>
-                  </div>
+              {(() => {
+                // Sort agents by damage (descending) when battle is finished
+                const isFinished = !battleStarted && agents.some(a => a.damage > 0)
+                const sortedAgents = isFinished
+                  ? [...agents].sort((a, b) => b.damage - a.damage)
+                  : agents
+                const prizes = ['🥇', '🥈', '🥉']
 
-                  {/* Damage Progress */}
-                  <div className="mb-3">
-                    <div className="flex justify-between text-[10px] font-mono text-neutral-500 uppercase mb-1">
-                      <span>Damage</span>
-                      <span style={{ color: agent.color }}>{agent.damage}</span>
-                    </div>
-                    <div className="w-full h-1 bg-neutral-900 overflow-hidden">
-                      <div
-                        className="h-full transition-all duration-300"
-                        style={{
-                          width: `${Math.min(100, agent.damage)}%`,
-                          backgroundColor: agent.color,
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Terminal logs */}
-                  <div className="bg-neutral-950 border border-neutral-800 p-3">
-                    <div className="text-[10px] font-mono text-neutral-600 uppercase mb-2 flex items-center gap-2">
-                      <span>Terminal</span>
-                      {(agent.status === 'running' || agent.status === 'starting') && (
-                        <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                return sortedAgents.map((agent, index) => (
+                  <div key={agent.id} className="border-b border-neutral-800 py-4">
+                    <div className="mb-3 flex items-center gap-2">
+                      <div className="text-sm font-mono font-bold uppercase" style={{ color: agent.color }}>
+                        {agent.name}
+                      </div>
+                      {isFinished && index < 3 && (
+                        <span className="text-3xl -mt-2">{prizes[index]}</span>
                       )}
                     </div>
-                    <AutoScrollTerminal
-                      logs={agent.terminalLogs}
-                      emptyMessage={battleStarted ? 'Connecting...' : 'Waiting for battle...'}
-                      isActive={agent.status === 'running' || agent.status === 'starting'}
-                      className="h-28"
-                    />
-                  </div>
 
-                </div>
-              ))}
+                    {/* Damage Progress */}
+                    <div className="mb-3">
+                      <div className="flex justify-between text-[10px] font-mono text-neutral-500 uppercase mb-1">
+                        <span>Damage</span>
+                        <span style={{ color: agent.color }}>{agent.damage}</span>
+                      </div>
+                      <div className="w-full h-1 bg-neutral-900 overflow-hidden">
+                        <div
+                          className="h-full transition-all duration-300"
+                          style={{
+                            width: `${Math.min(100, agent.damage)}%`,
+                            backgroundColor: agent.color,
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Terminal logs */}
+                    <div className="bg-neutral-950 border border-neutral-800 p-3">
+                      <div className="text-[10px] font-mono text-neutral-600 uppercase mb-2 flex items-center gap-2">
+                        <span>Terminal</span>
+                        {(agent.status === 'running' || agent.status === 'starting') && (
+                          <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                        )}
+                      </div>
+                      <AutoScrollTerminal
+                        logs={agent.terminalLogs}
+                        emptyMessage={battleStarted ? 'Connecting...' : 'Waiting for battle...'}
+                        isActive={agent.status === 'running' || agent.status === 'starting'}
+                        className="h-28"
+                      />
+                    </div>
+
+                  </div>
+                ))
+              })()}
             </div>
           </ScrollArea>
         </div>
