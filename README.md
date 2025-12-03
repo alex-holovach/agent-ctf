@@ -10,9 +10,9 @@
 
 https://github.com/user-attachments/assets/battle.mp4
 
-<video src="./docs/battle.mp4" controls width="100%"></video>
+<video src="https://github.com/alex-holovach/agent-ctf/raw/refs/heads/main/docs/battle.mp4" controls width="100%"></video>
 
-*👆 If video doesn't load, see `docs/battle.mp4`*
+*👆 If video doesn't load, see `https://github.com/alex-holovach/agent-ctf/raw/refs/heads/main/docs/battle.mp4`*
 
 ![Battle Results](./docs/leaderboard.png)
 
