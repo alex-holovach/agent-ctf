@@ -1,5 +1,5 @@
 import { db } from './db'
-import { games, gameEvents } from './db/schema'
+import { games, gameEvents, gameResults } from './db/schema'
 import { eq } from 'drizzle-orm'
 import type { AgentConfig, BattleEvent } from './types'
 import {
@@ -493,6 +493,63 @@ export async function runBattleWorkflow(
 
   // Check final status (game ends when tower defeated or manually cancelled)
   const isStillActive = await isBattleActive(gameId)
+
+  // Get final stats from tower before cleanup
+  let finalStats: { totalRequests: number; agents: Record<string, number> } | null = null
+  try {
+    finalStats = await readTowerStats(towerInfo.sandbox)
+  } catch (error) {
+    console.error('[Battle] Failed to read final stats:', error)
+  }
+
+  // Save game results to database
+  if (finalStats && finalStats.agents) {
+    try {
+      // Create results array with damage per agent
+      const results = agents.map(agent => ({
+        agentId: agent.id,
+        name: agent.name,
+        color: agent.color,
+        damage: finalStats!.agents[agent.id] || 0,
+      }))
+
+      // Sort by damage (descending) to calculate places
+      const sortedResults = [...results].sort((a, b) => b.damage - a.damage)
+
+      // Insert results into database
+      await Promise.all(
+        sortedResults.map((result, index) =>
+          db.insert(gameResults).values({
+            gameId,
+            model: result.name,
+            modelColor: result.color,
+            damage: result.damage,
+            place: index + 1,
+            tokensCount: 0, // TODO: Track actual tokens when AI is implemented
+          })
+        )
+      )
+
+      // Emit results event for UI
+      await emitEvent(gameId, {
+        type: 'battle:end',
+        timestamp: Date.now(),
+        message: 'Game results saved',
+        data: {
+          gameId,
+          results: sortedResults.map((r, i) => ({
+            model: r.name,
+            modelColor: r.color,
+            damage: r.damage,
+            place: i + 1,
+            tokensCount: 0,
+          })),
+        },
+      }, emit)
+    } catch (error) {
+      console.error('[Battle] Failed to save game results:', error)
+    }
+  }
 
   // Step 4: Cleanup - kill all sandboxes
   await cleanupBattle(gameId, emit)

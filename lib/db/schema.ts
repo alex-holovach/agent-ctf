@@ -25,5 +25,20 @@ export const gameEvents = pgTable("game_events", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 })
 
+// Game results table - stores final results per agent per game
+export const gameResults = pgTable("game_results", {
+  id: serial("id").primaryKey(),
+  gameId: integer("game_id")
+    .notNull()
+    .references(() => games.id),
+  model: text("model").notNull(), // e.g., "GPT-4", "Claude"
+  modelColor: text("model_color"), // agent color for display
+  damage: integer("damage").notNull(),
+  place: integer("place").notNull(), // 1, 2, 3, 4...
+  tokensCount: integer("tokens_count").default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+})
+
 export type Game = typeof games.$inferSelect
 export type GameEvent = typeof gameEvents.$inferSelect
+export type GameResult = typeof gameResults.$inferSelect

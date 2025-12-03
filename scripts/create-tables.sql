@@ -22,3 +22,19 @@ CREATE TABLE IF NOT EXISTS game_events (
 -- Index for efficient event queries
 CREATE INDEX IF NOT EXISTS idx_game_events_game_id ON game_events(game_id);
 CREATE INDEX IF NOT EXISTS idx_game_events_game_id_id ON game_events(game_id, id);
+
+-- Game results table - stores final results per agent per game
+CREATE TABLE IF NOT EXISTS game_results (
+  id SERIAL PRIMARY KEY,
+  game_id INTEGER NOT NULL REFERENCES games(id),
+  model TEXT NOT NULL,
+  model_color TEXT,
+  damage INTEGER NOT NULL,
+  place INTEGER NOT NULL,
+  tokens_count INTEGER DEFAULT 0,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- Index for efficient leaderboard queries
+CREATE INDEX IF NOT EXISTS idx_game_results_model ON game_results(model);
+CREATE INDEX IF NOT EXISTS idx_game_results_game_id ON game_results(game_id);

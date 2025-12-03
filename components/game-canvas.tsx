@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { AutoScrollTerminal } from "@/components/auto-scroll-terminal"
+import { ResultsTable, type GameResultEntry } from "@/components/results-table"
 import confetti from "canvas-confetti"
 import Link from "next/link"
 import useSWR from "swr"
@@ -46,6 +47,8 @@ export function GameCanvas() {
 
   const abortControllerRef = useRef<AbortController | null>(null)
   const [hasShownConfetti, setHasShownConfetti] = useState(false)
+  const [showResults, setShowResults] = useState(false)
+  const [gameResults, setGameResults] = useState<GameResultEntry[]>([])
 
   // Handle battle events
   const handleBattleEvent = useCallback((event: BattleEvent & { id?: number }) => {
@@ -242,6 +245,18 @@ export function GameCanvas() {
           terminalLogs: [...prev.terminalLogs.slice(-50), 'Battle ended - Tower defeated!'],
         }))
 
+        // Generate game results from agent data
+        const sortedAgents = [...agents].sort((a, b) => b.damage - a.damage)
+        const results: GameResultEntry[] = sortedAgents.map((agent, index) => ({
+          model: agent.name,
+          modelColor: agent.color,
+          damage: agent.damage,
+          place: index + 1,
+          tokensCount: 0, // TODO: Track actual tokens when AI is implemented
+        }))
+        setGameResults(results)
+        setShowResults(true)
+
         // Fire fireworks celebration
         if (!hasShownConfetti) {
           setHasShownConfetti(true)
@@ -275,7 +290,7 @@ export function GameCanvas() {
         }
       }
     }
-  }, [gameStatus, battleStarted, hasShownConfetti])
+  }, [gameStatus, battleStarted, hasShownConfetti, agents])
 
   // Start battle
   const handleStartBattle = async () => {
@@ -294,6 +309,8 @@ export function GameCanvas() {
     setLastEventId(0)
     setBattleStarted(true)
     setHasShownConfetti(false)
+    setShowResults(false)
+    setGameResults([])
 
     try {
       const response = await fetch('/api/battle', {
@@ -434,8 +451,21 @@ export function GameCanvas() {
           </ScrollArea>
         </div>
 
-        {/* Center - Battle Arena */}
+        {/* Center - Battle Arena or Results */}
         <div className="flex-1 relative overflow-hidden bg-black flex items-start justify-center pt-8">
+          {showResults ? (
+            <div className="w-full max-w-2xl px-8">
+              <h2 className="text-lg font-mono font-bold text-neutral-200 uppercase tracking-wide mb-6 text-center">
+                Battle Results
+              </h2>
+              <ResultsTable mode="game" gameResults={gameResults} />
+              <div className="mt-6 text-center">
+                <Button onClick={handleStartBattle} size="sm" className="font-mono text-xs h-8 px-6">
+                  Start New Battle
+                </Button>
+              </div>
+            </div>
+          ) : (
           <svg viewBox="0 0 1000 600" className="w-full h-auto max-w-full" style={{ maxHeight: "calc(100vh - 120px)" }}>
             {/* Background grid */}
             <defs>
@@ -584,6 +614,7 @@ export function GameCanvas() {
               ))
             })}
           </svg>
+          )}
         </div>
 
         {/* Right Sidebar - Tower Dashboard */}
