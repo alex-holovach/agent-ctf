@@ -356,25 +356,9 @@ export function GameCanvas() {
                     )}
                   </div>
 
-                  {/* Terminal logs */}
-                  <div className="bg-neutral-950 border border-neutral-800 p-3">
-                    <div className="text-[10px] font-mono text-neutral-600 uppercase mb-2 flex items-center gap-2">
-                      <span>Terminal</span>
-                      {(agent.status === 'running' || agent.status === 'starting') && (
-                        <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                      )}
-                    </div>
-                    <AutoScrollTerminal
-                      logs={agent.terminalLogs}
-                      emptyMessage={battleStarted ? 'Connecting...' : 'Waiting for battle...'}
-                      isActive={agent.status === 'running' || agent.status === 'starting'}
-                      className="h-28"
-                    />
-                  </div>
-
                   {/* Damage Progress */}
                   {agent.damage > 0 && (
-                    <div className="mt-3">
+                    <div className="mb-3">
                       <div className="flex justify-between text-[10px] font-mono text-neutral-500 uppercase mb-1">
                         <span>Damage</span>
                         <span style={{ color: agent.color }}>{agent.damage}</span>
@@ -390,6 +374,22 @@ export function GameCanvas() {
                       </div>
                     </div>
                   )}
+
+                  {/* Terminal logs */}
+                  <div className="bg-neutral-950 border border-neutral-800 p-3">
+                    <div className="text-[10px] font-mono text-neutral-600 uppercase mb-2 flex items-center gap-2">
+                      <span>Terminal</span>
+                      {(agent.status === 'running' || agent.status === 'starting') && (
+                        <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                      )}
+                    </div>
+                    <AutoScrollTerminal
+                      logs={agent.terminalLogs}
+                      emptyMessage={battleStarted ? 'Connecting...' : 'Waiting for battle...'}
+                      isActive={agent.status === 'running' || agent.status === 'starting'}
+                      className="h-28"
+                    />
+                  </div>
 
                 </div>
               ))}
