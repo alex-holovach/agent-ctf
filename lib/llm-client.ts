@@ -25,6 +25,8 @@ INSTRUCTIONS:
 CURL FORMAT (use socks proxy for all requests):
 curl --socks5 localhost:1055 -H "X-Agent-ID: ${agentId}" http://${towerIp}:PORT/ENDPOINT
 
+Keep in mind that some commands may take time and timeout if port is not reachable.
+
 Be fast and efficient. Every request counts!`
 }
 
