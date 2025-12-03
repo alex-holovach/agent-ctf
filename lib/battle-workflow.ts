@@ -16,7 +16,7 @@ import { runLLMAgent } from './llm-client'
 import type { Sandbox } from '@vercel/sandbox'
 
 // Game constants
-const INITIAL_TOWER_HEALTH = 10000
+const INITIAL_TOWER_HEALTH = 3000
 const DAMAGE_PER_REQUEST = 1
 
 // Sleep utility

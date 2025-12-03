@@ -441,7 +441,7 @@ export function GameCanvas() {
                         <div
                           className="h-full transition-all duration-300"
                           style={{
-                            width: `${Math.min(100, (agent.damage / 10000) * 100)}%`,
+                            width: `${Math.min(100, (agent.damage / 3000) * 100)}%`,
                             backgroundColor: agent.color,
                           }}
                         />
