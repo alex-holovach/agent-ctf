@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { AutoScrollTerminal } from "@/components/auto-scroll-terminal"
+import confetti from "canvas-confetti"
 import Link from "next/link"
 import useSWR from "swr"
 import { DEFAULT_AGENTS, type AgentConfig, type BattleEvent } from "@/lib/types"
@@ -44,6 +45,7 @@ export function GameCanvas() {
   })
 
   const abortControllerRef = useRef<AbortController | null>(null)
+  const [hasShownConfetti, setHasShownConfetti] = useState(false)
 
   // Handle battle events
   const handleBattleEvent = useCallback((event: BattleEvent & { id?: number }) => {
@@ -239,9 +241,41 @@ export function GameCanvas() {
           status: 'defeated',
           terminalLogs: [...prev.terminalLogs.slice(-50), 'Battle ended - Tower defeated!'],
         }))
+
+        // Fire fireworks celebration
+        if (!hasShownConfetti) {
+          setHasShownConfetti(true)
+
+          const duration = 5 * 1000
+          const animationEnd = Date.now() + duration
+          const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 9999 }
+
+          const randomInRange = (min: number, max: number) =>
+            Math.random() * (max - min) + min
+
+          const interval = window.setInterval(() => {
+            const timeLeft = animationEnd - Date.now()
+
+            if (timeLeft <= 0) {
+              return clearInterval(interval)
+            }
+
+            const particleCount = 50 * (timeLeft / duration)
+            confetti({
+              ...defaults,
+              particleCount,
+              origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 },
+            })
+            confetti({
+              ...defaults,
+              particleCount,
+              origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 },
+            })
+          }, 250)
+        }
       }
     }
-  }, [gameStatus, battleStarted])
+  }, [gameStatus, battleStarted, hasShownConfetti])
 
   // Start battle
   const handleStartBattle = async () => {
@@ -259,6 +293,7 @@ export function GameCanvas() {
     })
     setLastEventId(0)
     setBattleStarted(true)
+    setHasShownConfetti(false)
 
     try {
       const response = await fetch('/api/battle', {
@@ -595,6 +630,7 @@ export function GameCanvas() {
           </div>
         </div>
       </div>
+
     </div>
   )
 }
