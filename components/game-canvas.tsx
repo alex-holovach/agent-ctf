@@ -294,7 +294,8 @@ export function GameCanvas() {
 
   // Start battle
   const handleStartBattle = async () => {
-    // Reset state
+    // Reset state - set gameId to null FIRST to prevent SWR from fetching old game status
+    setGameId(null)
     setAgents(prev => prev.map(agent => ({
       ...agent,
       terminalLogs: [],
@@ -307,10 +308,10 @@ export function GameCanvas() {
       terminalLogs: [],
     })
     setLastEventId(0)
-    setBattleStarted(true)
     setHasShownConfetti(false)
     setShowResults(false)
     setGameResults([])
+    setBattleStarted(true)
 
     try {
       const response = await fetch('/api/battle', {
