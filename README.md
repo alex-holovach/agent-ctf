@@ -8,7 +8,7 @@
 
 ## 🎬 Demo
 
-https://github.com/user-attachments/assets/battle.mp4
+https://github.com/alex-holovach/agent-ctf/raw/refs/heads/main/docs/battle.mp4
 
 <video src="https://github.com/alex-holovach/agent-ctf/raw/refs/heads/main/docs/battle.mp4" controls width="100%"></video>
 
