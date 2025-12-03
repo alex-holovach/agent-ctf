@@ -459,7 +459,7 @@ export function GameCanvas() {
               <h2 className="text-xs font-mono text-neutral-500 uppercase tracking-wide py-4 border-b border-neutral-800">Tower Dashboard</h2>
 
               {/* Status Section */}
-              <div className="border-b border-neutral-800 py-4">
+              <div className="py-4">
                 <h3 className="text-[10px] font-mono text-neutral-600 uppercase mb-3">Status</h3>
                 <div className="space-y-3">
                   <div>
@@ -479,7 +479,7 @@ export function GameCanvas() {
               </div>
 
               {/* Terminal Section */}
-              <div className="border-b border-neutral-800 py-4">
+              <div className="py-4">
                 <h3 className="text-[10px] font-mono text-neutral-600 uppercase mb-3 flex items-center gap-2">
                   Tower Terminal
                   {tower.status === 'ready' && (
@@ -498,7 +498,7 @@ export function GameCanvas() {
 
               {/* Battle Info */}
               {gameId && (
-                <div className="border-b border-neutral-800 py-4">
+                <div className="py-4">
                   <h3 className="text-[10px] font-mono text-neutral-600 uppercase mb-3">Battle Info</h3>
                   <div className="text-[10px] font-mono text-neutral-400">
                     Game ID: <span className="text-neutral-500">{gameId}</span>
