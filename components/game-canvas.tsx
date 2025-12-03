@@ -373,9 +373,6 @@ export function GameCanvas() {
               <text x="0" y="64" textAnchor="middle" fill={tower.health <= 30 ? "#ef4444" : tower.health <= 60 ? "#f97316" : "#71717a"} style={{ fontSize: "10px" }} className="font-mono uppercase">
                 HP: {Math.round(tower.health)}%
               </text>
-              <text x="0" y="78" textAnchor="middle" fill={tower.status === 'ready' ? "#22c55e" : "#71717a"} style={{ fontSize: "9px" }} className="font-mono uppercase">
-                {tower.status.toUpperCase().replace('_', ' ')}
-              </text>
             </g>
 
             {/* Agents */}
@@ -412,9 +409,6 @@ export function GameCanvas() {
                   </motion.g>
                   <text x="0" y="35" textAnchor="middle" fill={agent.color} style={{ fontSize: "11px" }} className="font-mono font-bold uppercase">
                     {agent.name}
-                  </text>
-                  <text x="0" y="47" textAnchor="middle" fill={agent.status === 'running' ? "#22c55e" : "#71717a"} style={{ fontSize: "9px" }} className="font-mono">
-                    {agent.status.toUpperCase()}
                   </text>
                 </g>
               )
@@ -457,9 +451,8 @@ export function GameCanvas() {
             <div className="px-4">
               <h2 className="text-xs font-mono text-neutral-500 uppercase tracking-wide py-4 border-b border-neutral-800">Tower Dashboard</h2>
 
-              {/* Status Section */}
+              {/* Health Section */}
               <div className="py-4">
-                <h3 className="text-[10px] font-mono text-neutral-600 uppercase mb-3">Status</h3>
                 <div className="space-y-3">
                   <div>
                     <p className="text-[10px] font-mono text-neutral-500 uppercase mb-1">Health</p>
@@ -495,18 +488,6 @@ export function GameCanvas() {
                 </div>
               </div>
 
-              {/* Battle Info */}
-              {gameId && (
-                <div className="py-4">
-                  <h3 className="text-[10px] font-mono text-neutral-600 uppercase mb-3">Battle Info</h3>
-                  <div className="text-[10px] font-mono text-neutral-400">
-                    Game ID: <span className="text-neutral-500">{gameId}</span>
-                  </div>
-                  <div className="text-[10px] font-mono text-neutral-400 mt-1">
-                    Events: <span className="text-neutral-500">{lastEventId}</span>
-                  </div>
-                </div>
-              )}
             </div>
           </ScrollArea>
         </div>
