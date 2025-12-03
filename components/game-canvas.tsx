@@ -498,50 +498,47 @@ export function GameCanvas() {
         </div>
 
         {/* Right Sidebar - Tower Dashboard */}
-        <div className="w-[320px] border-l border-neutral-800 bg-black">
-          <ScrollArea className="h-full">
-            <div className="px-4">
-              <h2 className="text-xs font-mono text-neutral-500 uppercase tracking-wide py-4 border-b border-neutral-800">Tower Dashboard</h2>
+        <div className="w-[320px] border-l border-neutral-800 bg-black flex flex-col">
+          <div className="px-4">
+            <h2 className="text-xs font-mono text-neutral-500 uppercase tracking-wide py-4 border-b border-neutral-800">Tower Dashboard</h2>
 
-              {/* Health Section */}
-              <div className="py-4">
-                <div className="space-y-3">
-                  <div>
-                    <p className="text-[10px] font-mono text-neutral-500 uppercase mb-1">Health</p>
-                    <div className="text-2xl font-bold font-mono text-white">{Math.round(tower.health)}%</div>
-                    <div className="w-full h-1 bg-neutral-900 overflow-hidden mt-2">
-                      <div
-                        className="h-full transition-all duration-300"
-                        style={{
-                          width: `${tower.health}%`,
-                          backgroundColor: tower.health > 60 ? "#22c55e" : tower.health > 30 ? "#f97316" : "#ef4444",
-                        }}
-                      />
-                    </div>
+            {/* Health Section */}
+            <div className="py-4">
+              <div className="space-y-3">
+                <div>
+                  <p className="text-[10px] font-mono text-neutral-500 uppercase mb-1">Health</p>
+                  <div className="text-2xl font-bold font-mono text-white">{Math.round(tower.health)}%</div>
+                  <div className="w-full h-1 bg-neutral-900 overflow-hidden mt-2">
+                    <div
+                      className="h-full transition-all duration-300"
+                      style={{
+                        width: `${tower.health}%`,
+                        backgroundColor: tower.health > 60 ? "#22c55e" : tower.health > 30 ? "#f97316" : "#ef4444",
+                      }}
+                    />
                   </div>
                 </div>
               </div>
-
-              {/* Terminal Section */}
-              <div className="py-4">
-                <h3 className="text-[10px] font-mono text-neutral-600 uppercase mb-3 flex items-center gap-2">
-                  Tower Terminal
-                  {tower.status === 'ready' && (
-                    <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                  )}
-                </h3>
-                <div className="bg-neutral-950 border border-neutral-800 p-3">
-                  <AutoScrollTerminal
-                    logs={tower.terminalLogs}
-                    emptyMessage="System idle..."
-                    isActive={tower.status === 'ready'}
-                    className="h-48"
-                  />
-                </div>
-              </div>
-
             </div>
-          </ScrollArea>
+
+            {/* Terminal Section */}
+            <h3 className="text-[10px] font-mono text-neutral-600 uppercase mb-3 flex items-center gap-2">
+              Tower Terminal
+              {tower.status === 'ready' && (
+                <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+              )}
+            </h3>
+          </div>
+          <div className="flex-1 px-4 pb-4 min-h-0">
+            <div className="bg-neutral-950 border border-neutral-800 p-3 h-full">
+              <AutoScrollTerminal
+                logs={tower.terminalLogs}
+                emptyMessage="System idle..."
+                isActive={tower.status === 'ready'}
+                className="h-full"
+              />
+            </div>
+          </div>
         </div>
       </div>
     </div>
