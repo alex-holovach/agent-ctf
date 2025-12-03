@@ -459,100 +459,123 @@ export function GameCanvas() {
                 Battle Results
               </h2>
               <ResultsTable mode="game" gameResults={gameResults} />
-              <div className="mt-6 text-center">
-                <Button onClick={handleStartBattle} size="sm" className="font-mono text-xs h-8 px-6">
-                  Start New Battle
-                </Button>
-              </div>
             </div>
           ) : (
-          <svg viewBox="0 0 1000 600" className="w-full h-auto max-w-full" style={{ maxHeight: "calc(100vh - 120px)" }}>
-            {/* Background grid */}
-            <defs>
-              <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
-                <circle cx="10" cy="10" r="0.5" fill="#262626" opacity="0.4" />
-              </pattern>
-              <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-                <feGaussianBlur stdDeviation="3" result="coloredBlur" />
-                <feMerge>
-                  <feMergeNode in="coloredBlur" />
-                  <feMergeNode in="SourceGraphic" />
-                </feMerge>
-              </filter>
-            </defs>
-            <rect width="1000" height="600" fill="url(#grid)" />
+            <svg viewBox="0 0 1000 600" className="w-full h-auto max-w-full" style={{ maxHeight: "calc(100vh - 120px)" }}>
+              {/* Background grid */}
+              <defs>
+                <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+                  <circle cx="10" cy="10" r="0.5" fill="#262626" opacity="0.4" />
+                </pattern>
+                <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+                  <feGaussianBlur stdDeviation="3" result="coloredBlur" />
+                  <feMerge>
+                    <feMergeNode in="coloredBlur" />
+                    <feMergeNode in="SourceGraphic" />
+                  </feMerge>
+                </filter>
+              </defs>
+              <rect width="1000" height="600" fill="url(#grid)" />
 
-            {/* Tower */}
-            <g transform="translate(500, 150)">
-              <motion.g
-                initial={{ opacity: 0, scale: 0 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.5 }}
-              >
-                {Array.from({ length: 14 }).map((_, row) =>
-                  Array.from({ length: 14 }).map((_, col) => (
-                    <motion.circle
-                      key={`tower-${row}-${col}`}
-                      cx={col * 5 - 35}
-                      cy={row * 5 - 35}
-                      r="2"
-                      fill={tower.health <= 30 ? "#ef4444" : tower.health <= 60 ? "#f97316" : "#22c55e"}
-                      animate={{ opacity: [0.6, 1, 0.6] }}
-                      transition={{ duration: 2, repeat: Infinity, delay: (row + col) * 0.05 }}
+              {/* Tower */}
+              <g transform="translate(500, 150)">
+                <motion.g
+                  initial={{ opacity: 0, scale: 0 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.5 }}
+                >
+                  {Array.from({ length: 14 }).map((_, row) =>
+                    Array.from({ length: 14 }).map((_, col) => (
+                      <motion.circle
+                        key={`tower-${row}-${col}`}
+                        cx={col * 5 - 35}
+                        cy={row * 5 - 35}
+                        r="2"
+                        fill={tower.health <= 30 ? "#ef4444" : tower.health <= 60 ? "#f97316" : "#22c55e"}
+                        animate={{ opacity: [0.6, 1, 0.6] }}
+                        transition={{ duration: 2, repeat: Infinity, delay: (row + col) * 0.05 }}
+                      />
+                    )),
+                  )}
+                </motion.g>
+                <text x="0" y="50" textAnchor="middle" fill="#a3a3a3" style={{ fontSize: "12px" }} className="font-mono uppercase">
+                  TOWER
+                </text>
+                <text x="0" y="64" textAnchor="middle" fill={tower.health <= 30 ? "#ef4444" : tower.health <= 60 ? "#f97316" : "#22c55e"} style={{ fontSize: "10px" }} className="font-mono uppercase">
+                  HP: {Math.round(tower.health)}%
+                </text>
+              </g>
+
+              {/* Agents */}
+              {agents.map((agent, index) => {
+                const spacing = 180
+                const startX = 500 - ((agents.length - 1) * spacing) / 2
+                const cx = startX + index * spacing
+                const cy = 450
+
+                return (
+                  <g key={agent.id} transform={`translate(${cx}, ${cy})`}>
+                    <motion.g
+                      initial={{ opacity: 0, scale: 0 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ duration: 0.5, delay: index * 0.1 }}
+                    >
+                      {Array.from({ length: 10 }).map((_, row) =>
+                        Array.from({ length: 10 - row }).map((_, col) => (
+                          <motion.circle
+                            key={`${agent.id}-${row}-${col}`}
+                            cx={col * 5 + (row * 5) / 2 - 25}
+                            cy={row * 5 - 25}
+                            r="2"
+                            fill={agent.color}
+                            animate={
+                              agent.status === 'running' || agent.status === 'starting'
+                                ? { opacity: [0.7, 1, 0.7], scale: [1, 1.2, 1] }
+                                : {}
+                            }
+                            transition={{ duration: 1.5, repeat: Infinity, delay: (row + col) * 0.03 }}
+                          />
+                        )),
+                      )}
+                    </motion.g>
+                    <text x="0" y="35" textAnchor="middle" fill={agent.color} style={{ fontSize: "11px" }} className="font-mono font-bold uppercase">
+                      {agent.name}
+                    </text>
+                  </g>
+                )
+              })}
+
+              {/* Connection lines */}
+              <AnimatePresence>
+                {battleStarted && agents.map((agent, index) => {
+                  const spacing = 180
+                  const startX = 500 - ((agents.length - 1) * spacing) / 2
+                  const fromX = startX + index * spacing
+                  const fromY = 420
+                  const toX = 500
+                  const toY = 180
+
+                  if (agent.status !== 'running' && agent.status !== 'starting') return null
+
+                  return (
+                    <motion.line
+                      key={`line-${agent.id}`}
+                      x1={fromX} y1={fromY} x2={toX} y2={toY}
+                      stroke={agent.color}
+                      strokeWidth="1"
+                      strokeDasharray="4 4"
+                      strokeOpacity="0.3"
+                      initial={{ pathLength: 0, opacity: 0 }}
+                      animate={{ pathLength: 1, opacity: 0.3 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.5 }}
                     />
-                  )),
-                )}
-              </motion.g>
-              <text x="0" y="50" textAnchor="middle" fill="#a3a3a3" style={{ fontSize: "12px" }} className="font-mono uppercase">
-                TOWER
-              </text>
-              <text x="0" y="64" textAnchor="middle" fill={tower.health <= 30 ? "#ef4444" : tower.health <= 60 ? "#f97316" : "#22c55e"} style={{ fontSize: "10px" }} className="font-mono uppercase">
-                HP: {Math.round(tower.health)}%
-              </text>
-            </g>
+                  )
+                })}
+              </AnimatePresence>
 
-            {/* Agents */}
-            {agents.map((agent, index) => {
-              const spacing = 180
-              const startX = 500 - ((agents.length - 1) * spacing) / 2
-              const cx = startX + index * spacing
-              const cy = 450
-
-              return (
-                <g key={agent.id} transform={`translate(${cx}, ${cy})`}>
-                  <motion.g
-                    initial={{ opacity: 0, scale: 0 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ duration: 0.5, delay: index * 0.1 }}
-                  >
-                    {Array.from({ length: 10 }).map((_, row) =>
-                      Array.from({ length: 10 - row }).map((_, col) => (
-                        <motion.circle
-                          key={`${agent.id}-${row}-${col}`}
-                          cx={col * 5 + (row * 5) / 2 - 25}
-                          cy={row * 5 - 25}
-                          r="2"
-                          fill={agent.color}
-                          animate={
-                            agent.status === 'running' || agent.status === 'starting'
-                              ? { opacity: [0.7, 1, 0.7], scale: [1, 1.2, 1] }
-                              : {}
-                          }
-                          transition={{ duration: 1.5, repeat: Infinity, delay: (row + col) * 0.03 }}
-                        />
-                      )),
-                    )}
-                  </motion.g>
-                  <text x="0" y="35" textAnchor="middle" fill={agent.color} style={{ fontSize: "11px" }} className="font-mono font-bold uppercase">
-                    {agent.name}
-                  </text>
-                </g>
-              )
-            })}
-
-            {/* Connection lines */}
-            <AnimatePresence>
-              {battleStarted && agents.map((agent, index) => {
+              {/* Attack projectiles */}
+              {battleStarted && agents.flatMap((agent, index) => {
                 const spacing = 180
                 const startX = 500 - ((agents.length - 1) * spacing) / 2
                 const fromX = startX + index * spacing
@@ -560,60 +583,32 @@ export function GameCanvas() {
                 const toX = 500
                 const toY = 180
 
-                if (agent.status !== 'running' && agent.status !== 'starting') return null
+                // Show projectiles when agent is actively attacking (running/starting) and has done damage
+                if ((agent.status !== 'running' && agent.status !== 'starting') || agent.damage === 0) return []
 
-                return (
-                  <motion.line
-                    key={`line-${agent.id}`}
-                    x1={fromX} y1={fromY} x2={toX} y2={toY}
-                    stroke={agent.color}
-                    strokeWidth="1"
-                    strokeDasharray="4 4"
-                    strokeOpacity="0.3"
-                    initial={{ pathLength: 0, opacity: 0 }}
-                    animate={{ pathLength: 1, opacity: 0.3 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.5 }}
+                // Create multiple projectiles with staggered animations
+                return Array.from({ length: 3 }).map((_, projectileIndex) => (
+                  <motion.circle
+                    key={`projectile-${agent.id}-${projectileIndex}`}
+                    r="5"
+                    fill={agent.color}
+                    filter="url(#glow)"
+                    animate={{
+                      cx: [fromX, toX],
+                      cy: [fromY, toY],
+                      opacity: [0.8, 1, 1, 0.2],
+                      scale: [1, 1.2, 1, 0.8],
+                    }}
+                    transition={{
+                      duration: 1,
+                      repeat: Infinity,
+                      delay: projectileIndex * 0.35,
+                      ease: "easeInOut",
+                    }}
                   />
-                )
+                ))
               })}
-            </AnimatePresence>
-
-            {/* Attack projectiles */}
-            {battleStarted && agents.flatMap((agent, index) => {
-              const spacing = 180
-              const startX = 500 - ((agents.length - 1) * spacing) / 2
-              const fromX = startX + index * spacing
-              const fromY = 420
-              const toX = 500
-              const toY = 180
-
-              // Show projectiles when agent is actively attacking (running/starting) and has done damage
-              if ((agent.status !== 'running' && agent.status !== 'starting') || agent.damage === 0) return []
-
-              // Create multiple projectiles with staggered animations
-              return Array.from({ length: 3 }).map((_, projectileIndex) => (
-                <motion.circle
-                  key={`projectile-${agent.id}-${projectileIndex}`}
-                  r="5"
-                  fill={agent.color}
-                  filter="url(#glow)"
-                  animate={{
-                    cx: [fromX, toX],
-                    cy: [fromY, toY],
-                    opacity: [0.8, 1, 1, 0.2],
-                    scale: [1, 1.2, 1, 0.8],
-                  }}
-                  transition={{
-                    duration: 1,
-                    repeat: Infinity,
-                    delay: projectileIndex * 0.35,
-                    ease: "easeInOut",
-                  }}
-                />
-              ))
-            })}
-          </svg>
+            </svg>
           )}
         </div>
 
