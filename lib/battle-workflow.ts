@@ -8,9 +8,15 @@ import {
   createAgentSandbox,
   killAllAgentSandboxes,
   getAgentSandbox,
+  readTowerStats,
   type SandboxInfo,
   type AgentSandboxInfo,
 } from './sandbox'
+import type { Sandbox } from '@vercel/sandbox'
+
+// Game constants
+const INITIAL_TOWER_HEALTH = 100
+const DAMAGE_PER_REQUEST = 1
 
 // Sleep utility
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
@@ -181,7 +187,63 @@ async function setupAgentSandboxes(
   return agentSandboxes
 }
 
-// Agent step - sends 10 requests to tower via Tailscale
+// Monitor tower health by reading request counts from the tower sandbox
+async function monitorTowerHealth(
+  gameId: number,
+  towerSandbox: Sandbox,
+  emit?: (event: BattleEvent) => void
+): Promise<void> {
+  let lastTotal = 0
+
+  while (await isBattleActive(gameId)) {
+    try {
+      // Read request counts from tower sandbox
+      const stats = await readTowerStats(towerSandbox)
+      const totalRequests = stats?.totalRequests ?? 0
+
+      if (totalRequests !== lastTotal) {
+        const health = Math.max(0, INITIAL_TOWER_HEALTH - totalRequests * DAMAGE_PER_REQUEST)
+        lastTotal = totalRequests
+
+        // Emit tower:status with updated health
+        await emitEvent(gameId, {
+          type: 'tower:status',
+          timestamp: Date.now(),
+          data: {
+            health,
+            status: health > 0 ? 'under_attack' : 'defeated',
+            totalRequests,
+            agentStats: stats?.agents,
+          },
+        }, emit)
+
+        // Log health update to tower terminal
+        await emitEvent(gameId, {
+          type: 'tower:setup',
+          timestamp: Date.now(),
+          message: `Received ${totalRequests} requests. Health: ${health}%`,
+        }, emit)
+
+        // If health is 0, mark game as finished
+        if (health <= 0) {
+          await emitEvent(gameId, {
+            type: 'tower:setup',
+            timestamp: Date.now(),
+            message: 'TOWER DEFEATED! Health depleted.',
+          }, emit)
+          await db.update(games).set({ status: 'finished' }).where(eq(games.id, gameId))
+          break
+        }
+      }
+    } catch (error) {
+      console.error('[Health Monitor] Error reading stats:', error)
+    }
+
+    await sleep(200) // Check every 200ms
+  }
+}
+
+// Agent step - sends requests to tower via Tailscale until battle ends
 async function runAgentStep(
   gameId: number,
   agent: AgentConfig,
@@ -222,24 +284,16 @@ async function runAgentStep(
     data: { status: 'running' },
   }, emit)
 
-  // Send 10 requests to the tower's hello endpoint
-  for (let i = 0; i < 10; i++) {
-    // Check if battle was cancelled
-    if (!(await isBattleActive(gameId))) {
-      await emitEvent(gameId, {
-        type: 'agent:log',
-        timestamp: Date.now(),
-        agentId: agent.id,
-        message: 'Battle cancelled. Disconnecting...',
-      }, emit)
-      break
-    }
+  // Send requests continuously until battle ends (tower defeated or cancelled)
+  let requestCount = 0
+  while (await isBattleActive(gameId)) {
+    requestCount++
 
     await emitEvent(gameId, {
       type: 'agent:log',
       timestamp: Date.now(),
       agentId: agent.id,
-      message: `Sending request ${i + 1}/10...`,
+      message: `Sending request #${requestCount}...`,
     }, emit)
 
     // Capture response
@@ -314,7 +368,7 @@ async function runAgentStep(
     type: 'agent:log',
     timestamp: Date.now(),
     agentId: agent.id,
-    message: 'Session complete.',
+    message: `Battle ended. Sent ${requestCount} requests total.`,
   }, emit)
 }
 
@@ -417,13 +471,19 @@ export async function runBattleWorkflow(
     return
   }
 
-  await Promise.all(
-    agents
+  // Step 3: Run health monitor and all agents in parallel
+  // - Health monitor tracks damage and ends game when tower health reaches 0
+  // - Agents send requests continuously until battle ends
+  await Promise.all([
+    // Health monitor (will stop when health=0 or battle cancelled)
+    monitorTowerHealth(gameId, towerInfo.sandbox, emit),
+    // All agents attack (will stop when isBattleActive returns false)
+    ...agents
       .filter(agent => agentSandboxes.has(agent.id))
-      .map(agent => runAgentStep(gameId, agent, towerIp, emit))
-  )
+      .map(agent => runAgentStep(gameId, agent, towerIp, emit)),
+  ])
 
-  // Check final status
+  // Check final status (game ends when tower defeated or manually cancelled)
   const isStillActive = await isBattleActive(gameId)
 
   // Step 4: Cleanup - kill all sandboxes
@@ -442,7 +502,7 @@ export async function runBattleWorkflow(
   await emitEvent(gameId, {
     type: 'battle:end',
     timestamp: Date.now(),
-    message: isStillActive ? 'Battle finished!' : 'Battle was cancelled',
+    message: isStillActive ? 'Tower defeated! Battle finished!' : 'Battle was cancelled',
     data: {
       gameId,
       cancelled: !isStillActive,

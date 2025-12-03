@@ -363,3 +363,36 @@ export function getTowerSandbox(gameId: number): Sandbox | undefined {
 export function getAgentSandbox(gameId: number, agentId: string): Sandbox | undefined {
   return activeAgentSandboxes.get(`${gameId}-${agentId}`)
 }
+
+/**
+ * Read tower request stats from the persisted JSON file
+ */
+export async function readTowerStats(
+  sandbox: Sandbox
+): Promise<{ totalRequests: number; agents: Record<string, number> } | null> {
+  try {
+    let output = ''
+    const { Writable } = require('stream')
+    const stdoutStream = new Writable({
+      write(chunk: Buffer, _encoding: string, callback: () => void) {
+        output += chunk.toString()
+        callback()
+      }
+    })
+
+    const result = await sandbox.runCommand({
+      cmd: 'cat',
+      args: ['/tmp/request-counts.json'],
+      stdout: stdoutStream,
+    })
+
+    if (result.exitCode === 0 && output.trim()) {
+      const agents = JSON.parse(output) as Record<string, number>
+      const totalRequests = Object.values(agents).reduce((a: number, b: number) => a + b, 0)
+      return { totalRequests, agents }
+    }
+    return null
+  } catch {
+    return null
+  }
+}
