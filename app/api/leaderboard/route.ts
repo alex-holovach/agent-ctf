@@ -21,7 +21,6 @@ export async function GET(request: Request) {
         modelColor: r.modelColor || '#888888',
         damage: r.damage,
         place: r.place,
-        tokensCount: r.tokensCount || 0,
       }))
 
       return NextResponse.json({ results: gameResultsData })
@@ -44,7 +43,6 @@ export async function GET(request: Request) {
         totalDamage: sql<number>`SUM(${gameResults.damage})`.as('total_damage'),
         gamesPlayed: sql<number>`COUNT(*)`.as('games_played'),
         wins: sql<number>`SUM(CASE WHEN ${gameResults.place} = 1 THEN 1 ELSE 0 END)`.as('wins'),
-        totalTokens: sql<number>`SUM(COALESCE(${gameResults.tokensCount}, 0))`.as('total_tokens'),
       })
       .from(gameResults)
       .groupBy(gameResults.model, gameResults.modelColor)
@@ -60,7 +58,6 @@ export async function GET(request: Request) {
       winRate: entry.gamesPlayed > 0
         ? (Number(entry.wins) / Number(entry.gamesPlayed)) * 100
         : 0,
-      totalTokens: Number(entry.totalTokens) || 0,
     })).sort((a, b) => b.winRate - a.winRate)
 
     // Calculate summary stats
@@ -69,7 +66,6 @@ export async function GET(request: Request) {
         ? Math.max(...leaderboardData.map(d => d.gamesPlayed))
         : 0,
       totalDamage: leaderboardData.reduce((sum, d) => sum + d.totalDamage, 0),
-      totalTokens: leaderboardData.reduce((sum, d) => sum + d.totalTokens, 0),
     }
 
     return NextResponse.json({

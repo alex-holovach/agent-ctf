@@ -26,7 +26,6 @@ interface AgentState extends AgentConfig {
   terminalLogs: string[]
   status: 'idle' | 'starting' | 'running' | 'finished'
   damage: number
-  tokens: number
 }
 
 interface TowerState {
@@ -45,7 +44,6 @@ export function GameCanvas() {
       terminalLogs: [],
       status: 'idle',
       damage: 0,
-      tokens: 0,
     }))
   )
   const [tower, setTower] = useState<TowerState>({
@@ -127,17 +125,6 @@ export function GameCanvas() {
           setAgents(prev => prev.map(agent =>
             agent.id === event.agentId
               ? { ...agent, terminalLogs: [...agent.terminalLogs.slice(-50), `💭 ${event.message}`] }
-              : agent
-          ))
-        }
-        break
-
-      case 'agent:tokens':
-        // Update token count for agent
-        if (event.agentId && event.data?.totalTokens !== undefined) {
-          setAgents(prev => prev.map(agent =>
-            agent.id === event.agentId
-              ? { ...agent, tokens: event.data!.totalTokens as number }
               : agent
           ))
         }
@@ -284,7 +271,6 @@ export function GameCanvas() {
           modelColor: agent.color,
           damage: agent.damage,
           place: index + 1,
-          tokensCount: 0, // TODO: Track actual tokens when AI is implemented
         }))
         setGameResults(results)
         setShowResults(true)
@@ -445,36 +431,20 @@ export function GameCanvas() {
                       )}
                     </div>
 
-                    {/* Damage & Tokens */}
-                    <div className="mb-3 flex gap-4">
-                      <div className="flex-1">
-                        <div className="flex justify-between text-[10px] font-mono text-neutral-500 uppercase mb-1">
-                          <span>Damage</span>
-                          <span style={{ color: agent.color }}>{agent.damage}</span>
-                        </div>
-                        <div className="w-full h-1 bg-neutral-900 overflow-hidden">
-                          <div
-                            className="h-full transition-all duration-300"
-                            style={{
-                              width: `${Math.min(100, (agent.damage / 1000) * 100)}%`,
-                              backgroundColor: agent.color,
-                            }}
-                          />
-                        </div>
+                    {/* Damage */}
+                    <div className="mb-3">
+                      <div className="flex justify-between text-[10px] font-mono text-neutral-500 uppercase mb-1">
+                        <span>Damage</span>
+                        <span style={{ color: agent.color }}>{agent.damage}</span>
                       </div>
-                      <div className="flex-1">
-                        <div className="flex justify-between text-[10px] font-mono text-neutral-500 uppercase mb-1">
-                          <span>Tokens</span>
-                          <span className="text-neutral-400">{agent.tokens.toLocaleString()}</span>
-                        </div>
-                        <div className="w-full h-1 bg-neutral-900 overflow-hidden">
-                          <div
-                            className="h-full transition-all duration-300 bg-purple-500"
-                            style={{
-                              width: `${Math.min(100, agent.tokens / 1000)}%`,
-                            }}
-                          />
-                        </div>
+                      <div className="w-full h-1 bg-neutral-900 overflow-hidden">
+                        <div
+                          className="h-full transition-all duration-300"
+                          style={{
+                            width: `${Math.min(100, (agent.damage / 1000) * 100)}%`,
+                            backgroundColor: agent.color,
+                          }}
+                        />
                       </div>
                     </div>
 

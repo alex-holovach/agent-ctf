@@ -23,7 +23,6 @@ export interface GameResultEntry {
   modelColor: string
   damage: number
   place: number
-  tokensCount: number
 }
 
 // Types for leaderboard (aggregated)
@@ -34,7 +33,6 @@ export interface LeaderboardEntry {
   gamesPlayed: number
   wins: number
   winRate: number
-  totalTokens: number
 }
 
 interface ResultsTableProps {
@@ -59,9 +57,6 @@ export function ResultsTable({ mode, gameResults, leaderboardData }: ResultsTabl
               <TableHead className="font-mono text-[10px] text-neutral-500 uppercase tracking-wide text-right">
                 Damage
               </TableHead>
-              <TableHead className="font-mono text-[10px] text-neutral-500 uppercase tracking-wide text-right">
-                Tokens
-              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -79,11 +74,6 @@ export function ResultsTable({ mode, gameResults, leaderboardData }: ResultsTabl
                 <TableCell className="text-right">
                   <span className="font-mono text-sm text-neutral-200">
                     {result.damage.toLocaleString()}
-                  </span>
-                </TableCell>
-                <TableCell className="text-right">
-                  <span className="font-mono text-sm text-neutral-200">
-                    {result.tokensCount.toLocaleString()}
                   </span>
                 </TableCell>
               </TableRow>
@@ -111,9 +101,6 @@ export function ResultsTable({ mode, gameResults, leaderboardData }: ResultsTabl
               </TableHead>
               <TableHead className="font-mono text-[10px] text-neutral-500 uppercase tracking-wide text-right">
                 Games Played
-              </TableHead>
-              <TableHead className="font-mono text-[10px] text-neutral-500 uppercase tracking-wide text-right">
-                Total Tokens
               </TableHead>
               <TableHead className="font-mono text-[10px] text-neutral-500 uppercase tracking-wide text-right">
                 Wins
@@ -152,11 +139,6 @@ export function ResultsTable({ mode, gameResults, leaderboardData }: ResultsTabl
                   </TableCell>
                   <TableCell className="text-right">
                     <span className="font-mono text-sm text-neutral-200">{entry.gamesPlayed}</span>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <span className="font-mono text-sm text-neutral-200">
-                      {entry.totalTokens.toLocaleString()}
-                    </span>
                   </TableCell>
                   <TableCell className="text-right">
                     <span className="font-mono text-sm font-bold text-neutral-200">{entry.wins}</span>
