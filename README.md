@@ -14,8 +14,6 @@ https://github.com/user-attachments/assets/battle.mp4
 
 *👆 If video doesn't load, see `docs/battle.mp4`*
 
-### Battle Results
-
 ![Battle Results](./docs/leaderboard.png)
 
 ## 🎯 Motivation
