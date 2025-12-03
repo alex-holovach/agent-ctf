@@ -457,87 +457,98 @@ export async function runBattleWorkflow(
     tokenUsageByAgent.set(agent.id, result?.tokensUsed || 0)
   })
 
-  // Check final status (game ends when tower defeated or manually cancelled)
-  const isStillActive = await isBattleActive(gameId)
+  // Check final status - need to check actual status, not just if 'running'
+  // because monitorTowerHealth sets status to 'finished' when tower is defeated
+  const [gameStatus] = await db.select({ status: games.status }).from(games).where(eq(games.id, gameId))
+  const wasCancelled = gameStatus?.status === 'cancelled'
 
   // Get final stats from tower before cleanup
+  // Wait a moment for the tower server to write the latest stats (it writes every 100ms)
+  await sleep(200)
+
   let finalStats: { totalRequests: number; agents: Record<string, number> } | null = null
   try {
     finalStats = await readTowerStats(towerInfo.sandbox)
+    console.log('[Battle] Final stats:', JSON.stringify(finalStats))
   } catch (error) {
     console.error('[Battle] Failed to read final stats:', error)
   }
 
-  // Save game results to database
-  if (finalStats && finalStats.agents) {
-    try {
-      // Create results array with damage per agent
-      const results = agents.map(agent => ({
-        agentId: agent.id,
-        name: agent.name,
-        color: agent.color,
-        damage: finalStats!.agents[agent.id] || 0,
-        tokensUsed: tokenUsageByAgent.get(agent.id) || 0,
-      }))
+  // Save game results to database - ALWAYS save results, even if stats are null/empty
+  // This ensures the leaderboard always has data for completed games
+  try {
+    // Create results array with damage per agent
+    const results = agents.map(agent => ({
+      agentId: agent.id,
+      name: agent.name,
+      color: agent.color,
+      damage: finalStats?.agents?.[agent.id] || 0,
+      tokensUsed: tokenUsageByAgent.get(agent.id) || 0,
+    }))
 
-      // Sort by damage (descending) to calculate places
-      const sortedResults = [...results].sort((a, b) => b.damage - a.damage)
+    // Sort by damage (descending) to calculate places
+    const sortedResults = [...results].sort((a, b) => b.damage - a.damage)
 
-      // Insert results into database
-      await Promise.all(
-        sortedResults.map((result, index) =>
-          db.insert(gameResults).values({
-            gameId,
-            model: result.name,
-            modelColor: result.color,
-            damage: result.damage,
-            place: index + 1,
-            tokensCount: result.tokensUsed,
-          })
-        )
-      )
+    console.log('[Battle] Saving results:', JSON.stringify(sortedResults))
 
-      // Emit results event for UI
-      await emitEvent(gameId, {
-        type: 'battle:end',
-        timestamp: Date.now(),
-        message: 'Game results saved',
-        data: {
+    // Insert results into database
+    await Promise.all(
+      sortedResults.map((result, index) =>
+        db.insert(gameResults).values({
           gameId,
-          results: sortedResults.map((r, i) => ({
-            model: r.name,
-            modelColor: r.color,
-            damage: r.damage,
-            place: i + 1,
-            tokensCount: r.tokensUsed,
-          })),
-        },
-      }, emit)
-    } catch (error) {
-      console.error('[Battle] Failed to save game results:', error)
-    }
+          model: result.name,
+          modelColor: result.color,
+          damage: result.damage,
+          place: index + 1,
+          tokensCount: result.tokensUsed,
+        })
+      )
+    )
+
+    console.log('[Battle] Results saved successfully for game', gameId)
+
+    // Emit results event for UI
+    await emitEvent(gameId, {
+      type: 'battle:end',
+      timestamp: Date.now(),
+      message: 'Game results saved',
+      data: {
+        gameId,
+        results: sortedResults.map((r, i) => ({
+          model: r.name,
+          modelColor: r.color,
+          damage: r.damage,
+          place: i + 1,
+          tokensCount: r.tokensUsed,
+        })),
+      },
+    }, emit)
+  } catch (error) {
+    console.error('[Battle] Failed to save game results:', error)
   }
 
   // Step 4: Cleanup - kill all sandboxes
   await cleanupBattle(gameId, emit)
 
-  // Mark game as finished in DB
-  await db.update(games)
-    .set({
-      status: isStillActive ? 'finished' : 'cancelled',
-      finishedAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .where(eq(games.id, gameId))
+  // Mark game as finished in DB (only if not already cancelled)
+  if (!wasCancelled) {
+    await db.update(games)
+      .set({
+        status: 'finished',
+        finishedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(games.id, gameId))
+  }
 
   // Emit battle end
   await emitEvent(gameId, {
     type: 'battle:end',
     timestamp: Date.now(),
-    message: isStillActive ? 'Tower defeated! Battle finished!' : 'Battle was cancelled',
+    message: wasCancelled ? 'Battle was cancelled' : 'Tower defeated! Battle finished!',
     data: {
       gameId,
-      cancelled: !isStillActive,
+      cancelled: wasCancelled,
     },
   }, emit)
 }
